@@ -179,7 +179,9 @@ vec3 trace(vec3 origin, vec3 direction)
         texel = sample(block, BOTTOM, intersect.x, intersect.y, intersect.z);
       else
         texel = sample(block, SIDE, intersect.x, intersect.y, intersect.z);
-      return vec3(texel);
+      if(texel.w > 0.5)
+        return vec3(texel);
+      /*
       //multiply current color by texel
       color.x *= texel.x;
       color.y *= texel.y;
@@ -187,6 +189,7 @@ vec3 trace(vec3 origin, vec3 direction)
       //set new ray position and direction based on reflection
       direction = reflect(direction, normal);
       bounces++;
+      */
     }
     origin = intersect;
     blockIter = nextBlock;
