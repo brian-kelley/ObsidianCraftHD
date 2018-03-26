@@ -4,9 +4,11 @@
 #include "glmHeaders.hpp"
 #include "world.hpp"
 
+#define RENDER_THREADS 4
+
 //Width and height of the raytraced framebuffer
-#define RAY_W 320
-#define RAY_H 200
+#define RAY_W 640
+#define RAY_H 480
 #define RAYS_PER_PIXEL 2
 //maximum number of reflections/refractions for ray to escape to the sky
 #define MAX_BOUNCES 1

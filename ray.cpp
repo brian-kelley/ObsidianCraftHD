@@ -3,6 +3,7 @@
 #include "player.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <pthread.h>
 
 using std::ostream;
 using std::cout;
@@ -21,42 +22,68 @@ ostream& operator<<(ostream& os, vec4 v)
   return os;
 }
 
+void renderPixel(int x, int y)
+{
+  //find ray by inverse projecting two points in NDC
+  //one on near plane, one on far plane
+  vec4 backWorld(
+      ((float) x / RAY_W) * 2 - 1,
+      ((float) y / RAY_H) * 2 - 1,
+      -1, 1);
+  backWorld = projInv * backWorld;
+  backWorld /= backWorld.w;
+  backWorld = viewInv * backWorld;
+  vec4 frontWorld(
+      ((float) x / RAY_W) * 2 - 1,
+      ((float) y / RAY_H) * 2 - 1,
+      1, 1);
+  frontWorld = projInv * frontWorld;
+  frontWorld /= frontWorld.w;
+  frontWorld = viewInv * frontWorld;
+  vec3 direction = glm::normalize(vec3(frontWorld) - vec3(backWorld));
+  vec3 color(0, 0, 0);
+  for(int j = 0; j < RAYS_PER_PIXEL; j++)
+  {
+    color += trace(vec3(backWorld), direction);
+  }
+  color /= RAYS_PER_PIXEL;
+  //clamp colors and convert to integer components
+  byte* pixel = frameBuf + 4 * (x + y * RAY_W);
+  pixel[0] = fmin(color.x, 1) * 255;
+  pixel[1] = fmin(color.y, 1) * 255;
+  pixel[2] = fmin(color.z, 1) * 255;
+  pixel[3] = 255;
+}
+
+//worker function for threads
+void* renderRange(void* data)
+{
+  int begin = ((int*) data)[0];
+  int end = ((int*) data)[1];
+  for(int i = begin; i < end; i++)
+  {
+    renderPixel(i % RAY_W, i / RAY_W);
+  }
+  return NULL;
+}
+
 void render()
 {
-  for(int y = 0; y < RAY_H; y++)
+  int workRanges[RENDER_THREADS + 1];
+  for(int i = 0; i <= RENDER_THREADS; i++)
   {
-    for(int x = 0; x < RAY_W; x++)
-    {
-      //find ray by inverse projecting two points in NDC
-      //one on near plane, one on far plane
-      vec4 backWorld(
-          ((float) x / RAY_W) * 2 - 1,
-          ((float) y / RAY_H) * 2 - 1,
-          -1, 1);
-      backWorld = projInv * backWorld;
-      backWorld /= backWorld.w;
-      backWorld = viewInv * backWorld;
-      vec4 frontWorld(
-          ((float) x / RAY_W) * 2 - 1,
-          ((float) y / RAY_H) * 2 - 1,
-          1, 1);
-      frontWorld = projInv * frontWorld;
-      frontWorld /= frontWorld.w;
-      frontWorld = viewInv * frontWorld;
-      vec3 direction = glm::normalize(vec3(frontWorld) - vec3(backWorld));
-      vec3 color(0, 0, 0);
-      for(int j = 0; j < RAYS_PER_PIXEL; j++)
-      {
-        color += trace(vec3(backWorld), direction);
-      }
-      color /= RAYS_PER_PIXEL;
-      //clamp colors and convert to integer components
-      byte* pixel = frameBuf + 4 * (x + y * RAY_W);
-      pixel[0] = fmin(color.x, 1) * 255;
-      pixel[1] = fmin(color.y, 1) * 255;
-      pixel[2] = fmin(color.z, 1) * 255;
-      pixel[3] = 255;
-    }
+    workRanges[i] = RAY_W * RAY_H * i / RENDER_THREADS;
+  }
+  pthread_t threads[RENDER_THREADS];
+  //launch threads
+  for(int i = 0; i < RENDER_THREADS; i++)
+  {
+    pthread_create(threads + i, NULL, renderRange, &workRanges[i]);
+  }
+  //then wait for all to terminate
+  for(int i = 0; i < RENDER_THREADS; i++)
+  {
+    pthread_join(threads[i], NULL);
   }
 }
 
