@@ -187,12 +187,12 @@ vec3 trace(vec3 origin, vec3 direction)
         || nextBlock.y < -10 || nextBlock.y > chunksY * 16 + 10
         || nextBlock.z < -10 || nextBlock.z > chunksZ * 16 + 10)
     {
-      //ray escaped without hitting anything; return sky color
+      //ray escaped world without hitting anything; return the constant sky color
       if(bounces == 0)
       {
         return vec3(135 / 255.0, 206 / 255.0, 250 / 255.0);
       }
-      //otherwise, return value obtained from bouncing off materials
+      //otherwise, return combined value obtained from bouncing off materials
       return color;
     }
     Block block = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
@@ -207,27 +207,38 @@ vec3 trace(vec3 origin, vec3 direction)
       else
         texel = sample(block, SIDE, intersect.x, intersect.y, intersect.z);
       if(texel.w > 0.5)
-        return vec3(texel);
-      /*
-      //multiply current color by texel
-      color.x *= texel.x;
-      color.y *= texel.y;
-      color.z *= texel.z;
-      //set new ray position and direction based on reflection
-      direction = reflect(direction, normal);
-      bounces++;
-      */
+      {
+        //multiply current color by texel,
+        //but reduce contribution after each bounce
+        float k = 1.0f / (bounces + 1);
+        color.x *= (k * texel.x + (1 - k));
+        color.y *= (k * texel.y + (1 - k));
+        color.z *= (k * texel.z + (1 - k));
+        //set new ray position and direction based on reflection
+        direction = reflect(direction, normal);
+        origin = intersect + direction * 0.1f;
+        blockIter = vec3((int) origin.x, (int) origin.y, (int) origin.z);
+        bounces++;
+      }
+      else
+      {
+        origin = intersect;
+        blockIter = nextBlock;
+      }
     }
-    origin = intersect;
-    blockIter = nextBlock;
+    else
+    {
+      origin = intersect;
+      blockIter = nextBlock;
+    }
   }
-  //light bounced too many times without reaching light source:
-  //no light contributed from this ray
+  //light bounced too many times without reaching light source,
+  //so no light contributed from this ray
   return vec3(0, 0, 0);
 }
 
 vec3 reflect(vec3 ray, vec3 normal)
 {
-  return ray + 2.0f * normal * glm::dot(ray, normal);
+  return ray - 2.0f * normal * glm::dot(ray, normal);
 }
 

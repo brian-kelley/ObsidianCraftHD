@@ -7,11 +7,11 @@
 #define RENDER_THREADS 4
 
 //Width and height of the raytraced framebuffer
-#define RAY_W 640
-#define RAY_H 480
-#define RAYS_PER_PIXEL 2
+#define RAY_W 400
+#define RAY_H 300
+#define RAYS_PER_PIXEL 1
 //maximum number of reflections/refractions for ray to escape to the sky
-#define MAX_BOUNCES 1
+#define MAX_BOUNCES 8
 
 //RAY_W * RAY_H RGBA color values
 extern byte* frameBuf;

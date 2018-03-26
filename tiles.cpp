@@ -48,7 +48,8 @@ static int texcoords[3][NUM_TILES][2] =
   {
     {0, 0},   //AIR (no texture)
     {16, 0},  //STONE
-    {0, 0},   //GRASS
+    //{0, 0},   //GRASS
+    {32, 64},   //GRASS
     {32, 32}, //COAL
     {16, 32}, //IRON
     {0, 32},  //GOLD
