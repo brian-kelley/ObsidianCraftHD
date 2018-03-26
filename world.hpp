@@ -17,9 +17,9 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 4
-#define chunksY 2
-#define chunksZ 4
+#define chunksX 5
+#define chunksY 5
+#define chunksZ 5
 #define totalChunks (chunksX * chunksY * chunksZ)
 
 //Allocate chunks and generate terrain

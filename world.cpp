@@ -30,7 +30,7 @@ Block getBlock(int x, int y, int z)
 
 bool blockInBounds(int x, int y, int z)
 {
-  return x > 0 && y > 0 && z > 0 &&
+  return x >= 0 && y >= 0 && z >= 0 &&
     x < 16 * chunksX && y < 16 * chunksY && z < 16 * chunksZ;
 }
 
@@ -92,7 +92,7 @@ void terrainGen()
     Block* chunkBlocks = (Block*) chunk->blocks;
     for(int i = 0; i < 4096; i++)
     {
-      chunkBlocks[i] = 4;
+      chunkBlocks[i] = 8;
     }
     for(int octave = 2; octave < 4; octave++)
     {
@@ -102,14 +102,11 @@ void terrainGen()
       //freq = samples per chunk length
       int freq = 16 / period;
       //loop over sample cubes, then loop over blocks within sample cubes and lerp its value from this octave
-      //printf("Octave %i: %i sample cubes of side length %i\n", octave, freq, period);
       for(int sample = 0; sample < freq * freq * freq; sample++)
       {
         int sx = sample % freq;
         int sy = (sample / freq) % freq;
         int sz = sample / (freq * freq);
-        //printf("Sample: %i %i %i\n", sx, sy, sz);
-        //clockSleep(500);
         int bx = 16 * cx + sx * period;
         int by = 16 * cy + sy * period;
         int bz = 16 * cz + sz * period;

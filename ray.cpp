@@ -156,7 +156,9 @@ vec3 trace(vec3 origin, vec3 direction)
       return vec3(0, 0, 0);
       assert(false);
     }
-    if(!blockInBounds(nextBlock.x, nextBlock.y, nextBlock.z))
+    if(nextBlock.x < -10 || nextBlock.x > chunksX * 16 + 10
+        || nextBlock.y < -10 || nextBlock.y > chunksY * 16 + 10
+        || nextBlock.z < -10 || nextBlock.z > chunksZ * 16 + 10)
     {
       //ray escaped without hitting anything; return sky color
       if(bounces == 0)

@@ -48,7 +48,7 @@ static int texcoords[3][NUM_TILES][2] =
   {
     {0, 0},   //AIR (no texture)
     {16, 0},  //STONE
-    {32, 48},   //GRASS
+    {0, 0},   //GRASS
     {32, 32}, //COAL
     {16, 32}, //IRON
     {0, 32},  //GOLD
@@ -67,7 +67,7 @@ static int texcoords[3][NUM_TILES][2] =
   {
     {0, 0},   //AIR (no texture)
     {16, 0},  //STONE
-    {0, 48},  //GRASS
+    {48, 0},  //GRASS
     {32, 32}, //COAL
     {16, 32}, //IRON
     {0, 32},  //GOLD
@@ -86,7 +86,7 @@ static int texcoords[3][NUM_TILES][2] =
   {
     {0, 0},   //AIR (no texture)
     {16, 0},  //STONE
-    {0, 32},  //GRASS
+    {32, 0},  //GRASS
     {32, 32}, //COAL
     {16, 32}, //IRON
     {0, 32},  //GOLD
@@ -106,7 +106,7 @@ static int texcoords[3][NUM_TILES][2] =
 vec4 sample(Block block, Side side, float x, float y, float z)
 {
   x = fmodf(x, 1);
-  y = fmodf(y, 1);
+  y = 1 - fmodf(y, 1);
   z = fmodf(z, 1);
   int tx = 0;
   int ty = 0;

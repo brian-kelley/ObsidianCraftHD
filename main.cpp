@@ -26,8 +26,6 @@ void initWindow()
     puts("Failed to initialize SDL");
     exit(1);
   }
-  SDL_CaptureMouse(SDL_TRUE);
-  SDL_ShowCursor(SDL_DISABLE);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -35,6 +33,8 @@ void initWindow()
       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
       viewportW, viewportH,
       SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+  SDL_CaptureMouse(SDL_TRUE);
+  SDL_ShowCursor(SDL_DISABLE);
   glContext = SDL_GL_CreateContext(window);
   SDL_GL_SetSwapInterval(1);
   glEnable(GL_TEXTURE_2D);
@@ -135,11 +135,12 @@ int main()
 {
   frameBuf = new byte[4 * RAY_W * RAY_H];
   terrainGen();
+  printWorldComposition();
   initWindow();
   initAtlas();
   initTexture();
   initPlayer();
-  printWorldComposition();
+  SDL_RaiseWindow(window);
   time_t timeSec = time(NULL);
   int fps = 0;
   running = true;
