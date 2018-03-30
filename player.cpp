@@ -170,7 +170,6 @@ bool moveHitbox(Hitbox* hb, int dir, float d)
 //(dyaw, dpitch) = mouse motion
 void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
 {
-  cout << "dt = " << dt << '\n';
   bool viewStale = false;
   if(jump && onGround)
   {
@@ -197,10 +196,6 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
   vel.z =
     dx * PLAYER_SPEED * sinf(yaw) +
     dz * PLAYER_SPEED * cosf(-yaw);
-  cout << "yaw = " << yaw << ", pitch = " << pitch << '\n';
-  cout << "player x = " << player << '\n';
-  cout << "player v = " << vel << '\n';
-  cout << "player is " << (onGround ? "" : "NOT ") << " on the ground\n";
   if(dyaw != 0 || dpitch != 0 || dx || dz)
   {
     //player look direction changed, so view matrix must be updated
@@ -234,13 +229,6 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
   moveHitbox(&hb, vel.x > 0 ? HB_PX : HB_MX, fabsf(dt * vel.x));
   moveHitbox(&hb, vel.z > 0 ? HB_PZ : HB_MZ, fabsf(dt * vel.z));
   //check if player is suspended in the air (clear onGround if so)
-  /*
-  if(onGround)
-  {
-    if(!moveHitbox(&hb, HB_MY, 0.001))
-      onGround = false;
-  }
-  */
 #ifndef NOCLIP
   //clamp player to world boundaries (can't fall out of world)
   if(hb.x < 0)

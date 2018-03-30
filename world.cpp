@@ -92,7 +92,7 @@ void terrainGen()
     Block* chunkBlocks = (Block*) chunk->blocks;
     for(int i = 0; i < 4096; i++)
     {
-      chunkBlocks[i] = 8;
+      chunkBlocks[i] = 4;
     }
     for(int octave = 2; octave < 4; octave++)
     {
@@ -379,9 +379,9 @@ void terrainGen()
     //cover the top 2/3 of trunk, and extend another 1/3 above it
     //have x/z radius be half the y radius
     //loop over bounding box of the leaves
-    float ellY = y + 1 + (5.0 / 6.0) * treeHeight;
-    int ry = 2 * treeHeight / 3;
-    float rxz = 2 * ry / 3;
+    //float ellY = y + 1 + (5.0 / 6.0) * treeHeight;
+    //int ry = 2 * treeHeight / 3;
+    //float rxz = 2 * ry / 3;
     replaceEllipsoid(AIR, LEAF, x, y + 1 + 0.833 * treeHeight, z, treeHeight * 0.4, treeHeight * 0.5, treeHeight * 0.4);
   }
   //initialize the block counts for each chunk

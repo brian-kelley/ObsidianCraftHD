@@ -4,6 +4,8 @@
 #include "ray.hpp"
 #include "world.hpp"
 #include "player.hpp"
+#include <sys/types.h>
+#include <unistd.h>
 
 #define GLERR {int e = glGetError(); if(e) \
   {printf("GL error %i, line %d\n", e, __LINE__); exit(1);}}
@@ -13,8 +15,10 @@ SDL_GLContext glContext;
 GLuint textureID;
 bool running;
 
-const int viewportW = 1280;
-const int viewportH = 960;
+const int viewportW = RAY_W;
+const int viewportH = RAY_H;
+
+double currentTime;
 
 Uint32 ticksLastFrame;
 
@@ -35,6 +39,7 @@ void initWindow()
       SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
   SDL_CaptureMouse(SDL_TRUE);
   SDL_ShowCursor(SDL_DISABLE);
+  SDL_WarpMouseInWindow(window, viewportW / 2, viewportH / 2);
   glContext = SDL_GL_CreateContext(window);
   SDL_GL_SetSwapInterval(1);
   glEnable(GL_TEXTURE_2D);
@@ -60,7 +65,7 @@ void initTexture()
 void renderFrame()
 {
   //run the ray tracer
-  render();
+  render(false);
   glClear(GL_COLOR_BUFFER_BIT);
   //update texture
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RAY_W, RAY_H, GL_RGBA, GL_UNSIGNED_BYTE, frameBuf);
@@ -94,9 +99,28 @@ void processInput()
     switch(event.type)
     {
       case SDL_KEYDOWN:
-        if(event.key.state == SDL_PRESSED && event.key.keysym.scancode == SDL_SCANCODE_SPACE)
+        if(event.key.state == SDL_PRESSED)
         {
-          jump = true;
+          if(event.key.keysym.scancode == SDL_SCANCODE_SPACE)
+          {
+            jump = true;
+          }
+          else if(event.key.keysym.scancode == SDL_SCANCODE_F)
+          {
+            //Render a high quality screenshot of the current view
+            //Fork a new process to do this so that the original interactive
+            //process can continue
+            if(fork() == 0)
+            {
+              cout << "Rendering a high-quality screenshot in the background\n";
+              cout << "You can close this application and the rendering will still run.\n";
+              toggleFancy();
+              render(true);
+              toggleFancy();
+              cout << "Done rendering screenshot.\n";
+              exit(0);
+            }
+          }
         }
         break;
       case SDL_MOUSEBUTTONDOWN:
@@ -131,11 +155,15 @@ void processInput()
   updatePlayer(dt, dx, dz, dyaw, dpitch, jump);
 }
 
+extern float fpart(float);
+extern float ipart(float);
+
 int main()
 {
   frameBuf = new byte[4 * RAY_W * RAY_H];
+  cout << "Generating terrain...\n";
   terrainGen();
-  printWorldComposition();
+  //printWorldComposition();
   initWindow();
   initAtlas();
   initTexture();
@@ -147,12 +175,13 @@ int main()
   while(running)
   {
     time_t currentTimeSec = time(NULL);
-    if(timeSec != currentTimeSec)
+    if(timeSec != currentTimeSec && timeSec % 5 == 0)
     {
       printf("%i frames per second\n", fps);
       fps = 0;
       timeSec = currentTimeSec;
     }
+    currentTime = SDL_GetTicks() / 1000.f;
     //process input also updates player physics
     processInput();
     renderFrame();

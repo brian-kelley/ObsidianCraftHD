@@ -46,27 +46,26 @@ static int texcoords[3][NUM_TILES][2] =
 {
   //Top textures
   {
-    {0, 0},   //AIR (no texture)
+    {16, 112},   //AIR (no texture)
     {16, 0},  //STONE
-    //{0, 0},   //GRASS
-    {32, 64},   //GRASS
+    {0, 0},   //GRASS
     {32, 32}, //COAL
     {16, 32}, //IRON
     {0, 32},  //GOLD
     {32, 48}, //DIAMOND
     {80, 16}, //LOG
     {64, 48}, //LEAF
-    {64, 0},   //WATER (no texture)
+    {16, 112},//WATER (no texture)
     {32, 16}, //SAND
     {16, 48}, //GLASS
     {80, 32}, //OBSIDIAN
     {32, 64}, //QUARTZ
     {16, 16}, //BEDROCK
-    {0, 352}
+    {0, 0}
   },
   //Side textures
   {
-    {0, 0},   //AIR (no texture)
+    {16, 112},//AIR (no texture)
     {16, 0},  //STONE
     {48, 0},  //GRASS
     {32, 32}, //COAL
@@ -75,7 +74,7 @@ static int texcoords[3][NUM_TILES][2] =
     {32, 48}, //DIAMOND
     {64, 16}, //LOG
     {64, 48}, //LEAF
-    {64, 0},   //WATER (no texture)
+    {16, 112},   //WATER (no texture)
     {32, 16}, //SAND
     {16, 48}, //GLASS
     {80, 32}, //OBSIDIAN
@@ -85,7 +84,7 @@ static int texcoords[3][NUM_TILES][2] =
   },
   //Bottom textures
   {
-    {0, 0},   //AIR (no texture)
+    {16, 112},//AIR (no texture)
     {16, 0},  //STONE
     {32, 0},  //GRASS
     {32, 32}, //COAL
@@ -94,7 +93,7 @@ static int texcoords[3][NUM_TILES][2] =
     {32, 48}, //DIAMOND
     {80, 16}, //LOG
     {64, 48}, //LEAF
-    {64, 0},   //WATER (no texture)
+    {16, 112},//WATER (no texture)
     {32, 16}, //SAND
     {16, 48}, //GLASS
     {80, 32}, //OBSIDIAN
@@ -102,6 +101,47 @@ static int texcoords[3][NUM_TILES][2] =
     {16, 16}, //BEDROCK
     {0, 0}
   }
+};
+
+float specularity[NUM_TILES] =
+{
+  0,        //AIR
+  0.6,      //STONE
+  0.5,      //DIRT
+  0.6,      //COAL
+  0.6,      //IRON
+  0.6,      //GOLD
+  0.9,      //DIAMOND
+  0.8,      //LOG
+  0.1,      //LEAF
+  1.0,      //WATER
+  0.4,      //SAND
+  1.0,      //GLASS
+  0.9,      //OBSIDIAN
+  0.9,      //QUARTZ
+  0.0,      //BEDROCK
+  0.0       //unused
+};
+
+//note: values for opaque blocks are never used
+float refractIndex[NUM_TILES] = 
+{
+  1,        //AIR
+  1,
+  1,
+  1,
+  1,
+  1,
+  2.417,    //DIAMOND
+  1,
+  1,
+  1.333,    //WATER
+  1,
+  1.517,    //GLASS
+  1.517,    //OBSIDIAN
+  1.46,     //QUARTZ
+  1,
+  1
 };
 
 vec4 sample(Block block, Side side, float x, float y, float z)
