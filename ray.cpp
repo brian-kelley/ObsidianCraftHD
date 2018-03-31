@@ -266,16 +266,16 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   exact = false;
   float eps = 1e-8;
   //sunlight direction
-  vec3 sunlight = normalize(vec3(0.3, -1, 0.1));
+  vec3 sunlight = normalize(vec3(0.5, -1, 0.1));
   //iterate through blocks, finding the faces that player is looking through
   int bounces = 0;
   //color components take on the product of texture components
   vec3 color(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
-    if(origin.x < 0 || origin.x > chunksX * 16
-        || origin.y < 0 || origin.y > chunksY * 16
-        || origin.z < 0 || origin.z > chunksZ * 16)
+    if(origin.x <= 0 || origin.x >= chunksX * 16
+        || origin.y <= 0 || origin.y >= chunksY * 16
+        || origin.z <= 0 || origin.z >= chunksZ * 16)
     {
       //ray escaped world without hitting anything
       //return the sun color or the sky color
@@ -287,19 +287,20 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       //otherwise, return combined value obtained from bouncing off materials
       //increase sharply if pointing directly at the sun
       float sunDot = glm::dot(direction, -sunlight);
+      return color;
       if(sunDot <= 0)
         return vec3(0, 0, 0);
-      return color * 1.8f;
+      return color * 1.5f;
     }
     //set blockIter to the block that ray is entering
     vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
-    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
     if(fpart(origin.x) < eps && direction.x < 0)
       blockIter.x -= 1;
     if(fpart(origin.y) < eps && direction.y < 0)
       blockIter.y -= 1;
     if(fpart(origin.z) < eps && direction.z < 0)
       blockIter.z -= 1;
+    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
     //get chunk that ray is entering,
     //and check if chunk is empty
     int cx = ipart(blockIter.x / 16);
@@ -328,7 +329,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
     //hit a block: sample texture at point of intersection
     vec4 texel(1, 1, 1, 0);
-    if(prevMaterial != nextMaterial)
+    if(prevMaterial != nextMaterial || prevMaterial == LEAF)
     {
       if(normal.y > 0)
         texel = sample(nextMaterial, TOP, intersect.x, intersect.y, intersect.z);
@@ -342,7 +343,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       exact = true;
       if(nextMaterial == WATER)
         return vec3(0, 0.5, 0.6);
-      if(texel.w > 0)
+      if(texel.w > 0.5)
         return vec3(texel);
     }
     else
@@ -353,6 +354,13 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       {
         //light, faint blue-green
         texel = vec4(0.7, 0.8, 0.9, 0);
+        if(normal.y < 0)
+          normal = -waterNormal(intersect);
+        else if(normal.y > 0)
+          normal = waterNormal(intersect);
+      }
+      else if(prevMaterial == AIR && nextMaterial == WATER)
+      {
         if(normal.y < 0)
           normal = -waterNormal(intersect);
         else if(normal.y > 0)
@@ -416,9 +424,9 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         //but reduce effect and de-saturate after each bounce
         //this is not realistic but is better visually with the
         //very saturated texture pack
-        float k = 1.0f / (bounces + 1) / (bounces + 1);
-        color *= 1 - k;
-        color += k * desaturate(vec3(texel), 1 / sqrtf(bounces + 1));
+        float k = 1.0f * powf(bounces + 1, -2);
+        color *= (1 - k);
+        color += k * desaturate(vec3(texel), 1 / (bounces + 1));
         //set new ray position and direction based on reflection
         direction = scatter(direction, normal, nextMaterial);
         bounces++;
@@ -435,15 +443,13 @@ vec3 scatter(vec3 direction, vec3 normal, Block material)
 {
   //compute ideal reflection vector
   vec3 s = normalize(glm::reflect(direction, normal));
-  //compute random scatter vector r
-  vec3 r = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
-  //keep r in same hemisphere as s
-  if(glm::dot(r, s) < 0)
-    r = -r;
   //compute the specular reflectino vector s
   //combine r and s based on material specularity
   float spec = specularity[material];
-  return normalize(spec * s + (1 - spec) * r);
+  vec3 r = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
+  if(glm::dot(normal, r) < 0)
+    r = -r;
+  return normalize(s * spec + (1 - spec) * r);
 }
 
 vec3 waterNormal(vec3 position)
@@ -465,8 +471,8 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 1920;
-    RAY_H = 1080;
+    RAY_W = 1600;
+    RAY_H = 900;
     MAX_BOUNCES = 8;
     RAYS_PER_PIXEL = 300;
     RAY_THREADS = 4;

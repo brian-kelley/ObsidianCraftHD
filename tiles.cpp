@@ -107,7 +107,7 @@ float specularity[NUM_TILES] =
 {
   0,        //AIR
   0.6,      //STONE
-  0.3,      //DIRT
+  0.8,      //DIRT
   0.6,      //COAL
   0.6,      //IRON
   0.6,      //GOLD
