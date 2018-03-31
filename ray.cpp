@@ -2,7 +2,6 @@
 #include "world.hpp"
 #include "player.hpp"
 #include <cstdlib>
-#include <iostream>
 #include <string>
 #include <sstream>
 #include <ctime>
@@ -271,17 +270,17 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   //color components take on the product of texture components
   vec3 color(1, 1, 1);
   time_t giveUpTime = time(NULL);
-  //set blockIter to the block that ray is entering
-  vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
-  Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
-  if(fpart(origin.x) < eps && direction.x < 0)
-    blockIter.x -= 1;
-  if(fpart(origin.y) < eps && direction.y < 0)
-    blockIter.y -= 1;
-  if(fpart(origin.z) < eps && direction.z < 0)
-    blockIter.z -= 1;
   while(bounces < MAX_BOUNCES)
   {
+    //set blockIter to the block that ray is entering
+    vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
+    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
+    if(fpart(origin.x) < eps && direction.x < 0)
+      blockIter.x -= 1;
+    if(fpart(origin.y) < eps && direction.y < 0)
+      blockIter.y -= 1;
+    if(fpart(origin.z) < eps && direction.z < 0)
+      blockIter.z -= 1;
     if(time(NULL) >= giveUpTime + 3)
     {
       cout << "Ray from " << origin << " in direction " << direction << " got stuck!\n";
@@ -332,7 +331,6 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       return color * 2.f;
     }
     Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
-    blockIter = nextBlock;
     if(prevMaterial != nextMaterial)
     {
       //hit a block: sample texture at point of intersection
@@ -350,14 +348,43 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       }
       //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
       //choose whether to reflect or refract
-      /*
-      if(nextMaterial == WATER && normal.y > 0)
+      if(prevMaterial == AIR && nextMaterial == WATER)
       {
-        texel = vec4(0.8, 0.9, 0.9, 0.3);
-        normal = waterNormal(intersect);
+        //light, faint blue-green
+        texel = vec4(0.7, 1.0, 1.0, 0);
+        if(normal.y != 0)
+          normal = waterNormal(intersect);
       }
-      */
-      if(texel.w > 0.5)
+      else if(texel.w < 1)
+      {
+        texel = vec4(1, 1, 1, 0);
+      }
+      bool refracted = false;
+      if(texel.w < 1)
+      {
+        //passing from one transparent medium to another
+        float nPrev = refractIndex[prevMaterial];
+        float nNext = refractIndex[nextMaterial];
+        //smaller angle of incidence means more likely to refract
+        float refractProb = sqrtf(fabsf(glm::dot(-normal, direction)));
+        if(nPrev > nNext)
+        {
+          //always refract when going down in index of refraction
+          refractProb = 1;
+        }
+        if((float) rand() / RAND_MAX < refractProb)
+        {
+          refracted = true;
+          origin = intersect;
+          //direction = glm::refract(direction, normal, nPrev / nNext);
+          //apply color to ray
+          color.x *= texel.x;
+          color.y *= texel.y;
+          color.z *= texel.z;
+          bounces++;
+        }
+      }
+      if(!refracted)
       {
         //reflect and blend sampled color and ray color,
         //but reduce effect and de-saturate after each bounce
@@ -371,51 +398,16 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         origin = intersect;
         bounces++;
       }
-      else
-      {
-        origin = intersect;
-      }
-      /*
-      if((float(rand()) / RAND_MAX) < texel.w)
-      {
-        //reflect
-        //multiply current color by texel,
-        //but reduce contribution after each bounce
-        float k = 1.0f / (bounces + 1) / (bounces + 1);
-        color *= 1 - k;
-        color += k * vec3(texel);
-        //set new ray position and direction based on reflection
-        direction = scatter(direction, normal, nextMaterial);
-        origin = intersect;
-        bounces++;
-      }
-      else
-      {
-        //refract
-        float n1 = refractIndex[prevMaterial];
-        float n2 = refractIndex[nextMaterial];
-        origin = intersect;
-        direction = refract(direction, normal, n1, n2);
-        blockIter = nextBlock;
-        bounces++;
-      }
-      */
     }
     else
     {
-      //didn't hit anything, so continue through whatever
-      //transparent medium ray was already in
+      //passing through same transparent medium, no change to color or direction
       origin = intersect;
     }
   }
   //light bounced too many times without reaching light source,
   //so no light contributed from this ray
   return vec3(0, 0, 0);
-}
-
-vec3 reflect(vec3 ray, vec3 normal)
-{
-  return ray - 2.0f * normal * glm::dot(ray, normal);
 }
 
 vec3 scatter(vec3 direction, vec3 normal, Block material)
@@ -425,19 +417,10 @@ vec3 scatter(vec3 direction, vec3 normal, Block material)
   if(glm::dot(r, normal) < 0)
     r = -r;
   //compute the specular reflectino vector s
-  vec3 s = reflect(direction, normal);
+  vec3 s = glm::reflect(direction, normal);
   //combine r and s based on material specularity
   float spec = specularity[material];
   return glm::normalize(spec * s + (1 - spec) * r);
-}
-
-vec3 refract(vec3 ray, vec3 normal, float n1, float n2)
-{
-  if(glm::dot(ray, normal) < 0)
-    normal = -normal;
-  float r = n1/n2;
-  float c = glm::dot(normal, ray);
-  return r * ray + (r * c - sqrtf(1 - r * r * (1 - c * c))) * normal;
 }
 
 vec3 waterNormal(vec3 position)
@@ -449,9 +432,9 @@ vec3 waterNormal(vec3 position)
   //amplitude needs to be very small
   const double k = 0.01;
   double scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  double x = position.x * 2 * M_PI * frequency + scaledTime;
-  double y = position.y * 2 * M_PI * frequency + scaledTime;
-  return vec3(-k * cos(x) * cos(y), 1, k * sin(x) * sin(y));
+  double x = fpart(position.x) * 2 * M_PI * frequency + scaledTime;
+  double y = fpart(position.y) * 2 * M_PI * frequency + scaledTime;
+  return normalize(vec3(-k * cos(x) * cos(y), 1, k * sin(x) * sin(y)));
 }
 
 void toggleFancy()
@@ -459,9 +442,9 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    MAX_BOUNCES = 8;
+    MAX_BOUNCES = 10;
     RAYS_PER_PIXEL = 15;
-    RAY_THREADS = 4;
+    RAY_THREADS = 8;
   }
   else
   {
