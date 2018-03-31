@@ -112,10 +112,10 @@ float specularity[NUM_TILES] =
   0.6,      //IRON
   0.6,      //GOLD
   0.9,      //DIAMOND
-  0.8,      //LOG
-  0.1,      //LEAF
+  0.5,      //LOG
+  0.3,      //LEAF
   1.0,      //WATER
-  0.4,      //SAND
+  0.5,      //SAND
   1.0,      //GLASS
   0.9,      //OBSIDIAN
   0.9,      //QUARTZ
@@ -144,20 +144,24 @@ float refractIndex[NUM_TILES] =
   1
 };
 
+float ipart(float);
+float fpart(float);
+
 vec4 sample(Block block, Side side, float x, float y, float z)
 {
-  x = fmodf(x, 1);
-  y = 1 - fmodf(y, 1);
-  z = fmodf(z, 1);
+  x = fpart(x);
+  y = 1 - fpart(y);
+  z = fpart(z);
+  float eps = 1e-8;
   int tx = 0;
   int ty = 0;
-  if(x == 0 && side == SIDE)
+  if(x < eps && side == SIDE)
   {
     //z,y give texcoords
     tx = z * 16;
     ty = y * 16;
   }
-  else if(z == 0 && side == SIDE)
+  else if(z < eps && side == SIDE)
   {
     //x,y
     tx = x * 16;
