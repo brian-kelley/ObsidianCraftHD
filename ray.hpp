@@ -7,7 +7,7 @@
 //Width and height of the raytraced framebuffer
 #define RAY_W 480
 #define RAY_H 320
-#define RAY_THREADS 4
+#define RAY_THREADS 1
 extern int RAYS_PER_PIXEL;
 extern int MAX_BOUNCES;
 

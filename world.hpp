@@ -17,12 +17,12 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 16
-#define chunksY 8
-#define chunksZ 16
+#define chunksX 4
+#define chunksY 4
+#define chunksZ 4
 #define totalChunks (chunksX * chunksY * chunksZ)
 
-//Allocate chunks and generate terrain
+void flatGen();
 void terrainGen();
 void printWorldComposition();
 

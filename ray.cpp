@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <ctime>
 #include <pthread.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -12,6 +13,7 @@
 using std::ostream;
 using std::cout;
 using std::string;
+using std::ostringstream;
 
 byte* frameBuf;
 
@@ -19,6 +21,13 @@ extern double currentTime;
 int RAYS_PER_PIXEL = 1;
 int MAX_BOUNCES = 1;
 bool fancy = false;
+
+//#define DEBUG_OUT
+#ifdef DEBUG_OUT
+#define bmk(x) cout << x;
+#else
+#define bmk(x)
+#endif
 
 const vec3 skyBlue(125 / 255.0, 196 / 255.0, 240 / 255.0);
 
@@ -103,32 +112,47 @@ float fpart(float in)
 
 void render(bool write)
 {
-  //wake up all the worker threads so they can 
-  int threadIDs[RAY_THREADS];
-  for(int i = 0; i < RAY_THREADS; i++)
+  if(RAY_THREADS == 1)
   {
-    threadIDs[i] = i;
+    //do rendering in main thread only
+    for(int y = 0; y < RAY_H; y++)
+    {
+      for(int x = 0; x < RAY_W; x++)
+      {
+        renderPixel(x, y);
+      }
+    }
   }
-  pthread_t threads[RAY_THREADS];
-  //launch threads
-  for(int i = 0; i < RAY_THREADS; i++)
+  else
   {
-    pthread_create(threads + i, NULL, renderRange, &threadIDs[i]);
-  }
-  //then wait for all to terminate
-  for(int i = 0; i < RAY_THREADS; i++)
-  {
-    pthread_join(threads[i], NULL);
+    int threadIDs[RAY_THREADS];
+    for(int i = 0; i < RAY_THREADS; i++)
+    {
+      threadIDs[i] = i;
+    }
+    pthread_t threads[RAY_THREADS];
+    //launch threads
+    for(int i = 0; i < RAY_THREADS; i++)
+    {
+      pthread_create(threads + i, NULL, renderRange, &threadIDs[i]);
+    }
+    //then wait for all to terminate
+    for(int i = 0; i < RAY_THREADS; i++)
+    {
+      pthread_join(threads[i], NULL);
+    }
   }
   if(write)
   {
-    string fname = "ochd_" + std::to_string(time(NULL) % 10000) + ".png";
-    stbi_write_png(fname.c_str(), RAY_W, RAY_H, 4, frameBuf, 4 * RAY_W);
+    ostringstream oss;
+    oss << "ochd_" << (time(NULL) % 10000) << ".png";
+    stbi_write_png(oss.str().c_str(), RAY_W, RAY_H, 4, frameBuf, 4 * RAY_W);
   }
 }
 
 vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
 {
+  bmk("Intersecting p = " << p << ", dir = " << dir << " through cube at " << cube << '\n')
   if(dir.x > 0)
   {
     //does origin + t * direction pass through the +x face?
@@ -138,6 +162,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.y >= cube.y && intersect.y <= cube.y + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
+      bmk("Ray hit +X face\n")
       norm = vec3(-1, 0, 0);
       return intersect;
     }
@@ -148,6 +173,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.y >= cube.y && intersect.y <= cube.y + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
+      bmk("Ray hit -X face\n")
       norm = vec3(1, 0, 0);
       return intersect;
     }
@@ -158,6 +184,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
+      bmk("Ray hit +Y face\n")
       norm = vec3(0, -1, 0);
       return intersect;
     }
@@ -168,6 +195,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
+      bmk("Ray hit -Y face\n")
       norm = vec3(0, 1, 0);
       return intersect;
     }
@@ -178,6 +206,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.y >= cube.y && intersect.y <= cube.y + size)
     {
+      bmk("Ray hit +Z face\n")
       norm = vec3(0, 0, -1);
       return intersect;
     }
@@ -188,6 +217,7 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.y >= cube.y && intersect.y <= cube.y + size)
     {
+      bmk("Ray hit -Z face\n")
       norm = vec3(0, 0, 1);
       return intersect;
     }
@@ -213,7 +243,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   while(bounces < MAX_BOUNCES)
   {
     //set blockIter to the block that ray is entering
-    vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
+    vec3 blockIter(ipart(origin.x), ipart(origin.y), ipart(origin.z));
     Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
     if(fpart(origin.x) < eps && direction.x < 0)
       blockIter.x -= 1;
@@ -223,9 +253,9 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       blockIter.z -= 1;
     //get chunk that ray is entering,
     //and check if chunk is empty
-    int cx = blockIter.x / 16;
-    int cy = blockIter.y / 16;
-    int cz = blockIter.z / 16;
+    int cx = ipart(blockIter.x / 16);
+    int cy = ipart(blockIter.y / 16);
+    int cz = ipart(blockIter.z / 16);
     bool chunkInBounds = cx >= 0 && cy >= 0 && cz >= 0 &&
       cx < chunksX && cy < chunksY && cz < chunksZ;
     bool emptyChunk = !chunkInBounds || (chunkInBounds && chunks[cx][cy][cz].numFilled == 0);
@@ -234,18 +264,20 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     //point of intersection with next cube face (block or chunk)
     vec3 intersect;
     //normal at point of intersection
+    bmk("Tracing ray from " << origin << " in direction " << direction << " through block " << blockIter << '\n')
     vec3 normal;
     if(emptyChunk)
       intersect = rayCubeIntersect(origin, direction, normal, chunkOrigin, 16);
     else
       intersect = rayCubeIntersect(origin, direction, normal, blockIter, 1);
-    vec3 nextBlock(ipart(intersect.x + eps), ipart(intersect.y + eps), ipart(intersect.z + eps));
-    if(fpart(nextBlock.x) < eps && direction.x < 0)
+    vec3 nextBlock(ipart(intersect.x), ipart(intersect.y), ipart(intersect.z));
+    if(fpart(intersect.x) < eps && direction.x < 0)
       nextBlock.x -= 1;
-    if(fpart(nextBlock.y) < eps && direction.y < 0)
+    if(fpart(intersect.y) < eps && direction.y < 0)
       nextBlock.y -= 1;
-    if(fpart(nextBlock.z) < eps && direction.z < 0)
+    if(fpart(intersect.z) < eps && direction.z < 0)
       nextBlock.z -= 1;
+    bmk("Intersection point is " << intersect << " and next block is " << nextBlock << '\n')
     if(nextBlock.x < -8 || nextBlock.x > chunksX * 16 + 8
         || nextBlock.y < -8 || nextBlock.y > chunksY * 16 + 8
         || nextBlock.z < -8 || nextBlock.z > chunksZ * 16 + 8)
@@ -308,12 +340,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       else
       {
         //refract
-        cout << "refracting\n";
+        bmk("refracting\n")
         float n1 = refractIndex[prevBlock];
         float n2 = refractIndex[block];
         origin = intersect;
         direction = refract(direction, normal, n1, n2);
-        cout << "Direction now " << direction << '\n';
+        bmk("Direction now " << direction << '\n')
         blockIter = nextBlock;
         bounces++;
       }

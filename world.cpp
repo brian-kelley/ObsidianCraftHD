@@ -66,6 +66,46 @@ void replaceEllipsoid(Block replace, Block with, int x, int y, int z, float rx, 
   }
 }
 
+static void setNumFilled()
+{
+  for(int i = 0; i < totalChunks; i++)
+  {
+    Chunk* c = ((Chunk*) chunks) + i;
+    Block* b = (Block*) (c->blocks);
+    c->numFilled = 0;
+    for(int j = 0; j < 4096; j++)
+    {
+      if(b[j] != AIR)
+        c->numFilled++;
+    }
+  }
+}
+
+void flatGen()
+{
+  int wx = chunksX * 16;
+  int wy = chunksY * 16;
+  int wz = chunksZ * 16;
+  for(int i = 0; i < wx; i++)
+  {
+    for(int j = 0; j < wy; j++)
+    {
+      for(int k = 0; k < wz; k++)
+      {
+        setBlock(AIR, i, j, k);
+      }
+    }
+  }
+  for(int i = 0; i < wx; i++)
+  {
+    for(int j = 0; j < wz; j++)
+    {
+      setBlock(LOG, i, 0, j);
+    }
+  }
+  setNumFilled();
+}
+
 void terrainGen()
 {
   int wx = chunksX * 16;
@@ -384,18 +424,7 @@ void terrainGen()
     //float rxz = 2 * ry / 3;
     replaceEllipsoid(AIR, LEAF, x, y + 1 + 0.833 * treeHeight, z, treeHeight * 0.4, treeHeight * 0.5, treeHeight * 0.4);
   }
-  //initialize the block counts for each chunk
-  for(int i = 0; i < totalChunks; i++)
-  {
-    Chunk* c = ((Chunk*) chunks) + i;
-    Block* b = (Block*) (c->blocks);
-    c->numFilled = 0;
-    for(int j = 0; j < 4096; j++)
-    {
-      if(b[j] != AIR)
-        c->numFilled++;
-    }
-  }
+  setNumFilled();
 }
 
 void printWorldComposition()

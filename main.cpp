@@ -121,6 +121,11 @@ void processInput()
               exit(0);
             }
           }
+          else if(event.key.keysym.scancode == SDL_SCANCODE_Q)
+          {
+            //Q = quit
+            running = false;
+          }
         }
         break;
       case SDL_MOUSEBUTTONDOWN:
@@ -130,6 +135,7 @@ void processInput()
       case SDL_MOUSEMOTION:
         dyaw = event.motion.xrel;
         dpitch = event.motion.yrel;
+        SDL_WarpMouseInWindow(window, viewportW / 2, viewportH / 2);
         break;
       case SDL_MOUSEWHEEL:
         break;
@@ -162,7 +168,9 @@ int main()
 {
   frameBuf = new byte[4 * RAY_W * RAY_H];
   cout << "Generating terrain...\n";
-  terrainGen();
+  //terrainGen();
+  flatGen();
+  cout << "Done with terrain\n";
   //printWorldComposition();
   initWindow();
   initAtlas();
