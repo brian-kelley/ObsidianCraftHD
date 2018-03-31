@@ -70,8 +70,7 @@ static void updateView()
 void initPlayer()
 {
   //place player just above ceiling, center of world
-  //player = vec3(chunksX * 16 / 2, chunksY * 16 + 2, chunksZ * 16 / 2);
-  player = vec3(chunksX * 16 / 2, 10, chunksZ * 16 / 2);
+  player = vec3(chunksX * 16 / 2, chunksY * 16 + 2, chunksZ * 16 / 2);
   onGround = false;
   vel = vec3(0, 0, 0);
   yaw = 0;

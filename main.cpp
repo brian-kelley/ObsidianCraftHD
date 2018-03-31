@@ -6,6 +6,7 @@
 #include "player.hpp"
 #include <sys/types.h>
 #include <unistd.h>
+#include <sstream>
 
 #define GLERR {int e = glGetError(); if(e) \
   {printf("GL error %i, line %d\n", e, __LINE__); exit(1);}}
@@ -36,10 +37,11 @@ void initWindow()
   window = SDL_CreateWindow("ObsidianCraft",
       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
       viewportW, viewportH,
-      SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
-  SDL_CaptureMouse(SDL_TRUE);
+      SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_INPUT_GRABBED);
   SDL_ShowCursor(SDL_DISABLE);
   SDL_WarpMouseInWindow(window, viewportW / 2, viewportH / 2);
+  //SDL_SetRelativeMouseMode(SDL_TRUE);
+  SDL_SetWindowGrab(window, SDL_TRUE);
   glContext = SDL_GL_CreateContext(window);
   SDL_GL_SetSwapInterval(1);
   glEnable(GL_TEXTURE_2D);
@@ -112,8 +114,12 @@ void processInput()
             //process can continue
             if(fork() == 0)
             {
-              cout << "Rendering a high-quality screenshot in the background\n";
+              cout << "Forked rendering process " << getpid() << '\n';
               cout << "You can close this application and the rendering will still run.\n";
+              //renice self to keep system responsive with a bunch of threads running
+              std::ostringstream oss;
+              oss << "renice -n 5 -p " << getpid() << '\n';
+              system(oss.str().c_str());
               toggleFancy();
               render(true);
               toggleFancy();
@@ -133,9 +139,9 @@ void processInput()
       case SDL_MOUSEBUTTONUP:
         break;
       case SDL_MOUSEMOTION:
-        dyaw = event.motion.xrel;
-        dpitch = event.motion.yrel;
-        SDL_WarpMouseInWindow(window, viewportW / 2, viewportH / 2);
+        dyaw += event.motion.xrel;
+        dpitch += event.motion.yrel;
+        cout << "Mouse moved " << dyaw << ", " << dpitch << '\n';
         break;
       case SDL_MOUSEWHEEL:
         break;
@@ -155,6 +161,14 @@ void processInput()
     dx--;
   if(keystate[SDL_SCANCODE_D])
     dz++;
+  if(keystate[SDL_SCANCODE_I])
+    dpitch = -3;
+  if(keystate[SDL_SCANCODE_J])
+    dyaw = -3;
+  if(keystate[SDL_SCANCODE_K])
+    dpitch = 3;
+  if(keystate[SDL_SCANCODE_L])
+    dyaw = 3;
   Uint32 nowTicks = SDL_GetTicks();
   float dt = (nowTicks - ticksLastFrame) / 1000.0f;
   ticksLastFrame = nowTicks;
@@ -168,8 +182,8 @@ int main()
 {
   frameBuf = new byte[4 * RAY_W * RAY_H];
   cout << "Generating terrain...\n";
-  //terrainGen();
-  flatGen();
+  terrainGen();
+  //flatGen();
   cout << "Done with terrain\n";
   //printWorldComposition();
   initWindow();
@@ -183,7 +197,7 @@ int main()
   while(running)
   {
     time_t currentTimeSec = time(NULL);
-    if(timeSec != currentTimeSec && timeSec % 5 == 0)
+    if(timeSec != currentTimeSec)
     {
       printf("%i frames per second\n", fps);
       fps = 0;
@@ -195,6 +209,7 @@ int main()
     renderFrame();
     fps++;
   }
+  SDL_Quit();
   return 0;
 }
 

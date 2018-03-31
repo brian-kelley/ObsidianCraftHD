@@ -10,11 +10,11 @@
 #define BREAK_TIME 15       //how many frames it takes to break a block
 #define PLAYER_SPEED 5      //horizontal movement speed
 #define JUMP_SPEED 9        //vertical takeoff speed of jump
-#define GRAVITY 0           //g, in m/s^2
+#define GRAVITY 20          //g, in m/s^2
 #define TERMINAL_VELOCITY 20
 
-#define X_SENSITIVITY 0.008
-#define Y_SENSITIVITY 0.008
+#define X_SENSITIVITY 0.028
+#define Y_SENSITIVITY 0.028
 
 #define NEAR_PLANE 0.01f
 #define FAR_PLANE 500.f

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <ctime>
 #include <pthread.h>
+#include <unistd.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -18,6 +19,7 @@ using std::ostringstream;
 byte* frameBuf;
 
 extern double currentTime;
+int RAY_THREADS = 4;
 int RAYS_PER_PIXEL = 1;
 int MAX_BOUNCES = 1;
 bool fancy = false;
@@ -29,7 +31,8 @@ bool fancy = false;
 #define bmk(x)
 #endif
 
-const vec3 skyBlue(125 / 255.0, 196 / 255.0, 240 / 255.0);
+//const vec3 skyBlue(125 / 255.0, 196 / 255.0, 240 / 255.0);
+const vec3 skyBlue(180 / 255.0, 180 / 255.0, 180 / 255.0);
 
 ostream& operator<<(ostream& os, vec3 v)
 {
@@ -42,6 +45,8 @@ ostream& operator<<(ostream& os, vec4 v)
   os << '(' << v.x << ", " << v.y << ", " << v.z << ", " << v.w << ')';
   return os;
 }
+
+static int* workCounts;
 
 void renderPixel(int x, int y)
 {
@@ -87,12 +92,14 @@ void* renderRange(void* data)
 {
   //what is my thread index
   int index = *((int*) data);
+  workCounts[index] = 0;
   //range of pixels this thread is responsible for
   int workBegin = RAY_W * RAY_H * index / RAY_THREADS;
   int workEnd = RAY_W * RAY_H * (index + 1) / RAY_THREADS;
   for(int i = workBegin; i < workEnd; i++)
   {
     renderPixel(i % RAY_W, i / RAY_W);
+    workCounts[index]++;
   }
   return NULL;
 }
@@ -131,12 +138,26 @@ void render(bool write)
       threadIDs[i] = i;
     }
     pthread_t threads[RAY_THREADS];
+    workCounts = new int[RAY_THREADS];
     //launch threads
     for(int i = 0; i < RAY_THREADS; i++)
     {
       pthread_create(threads + i, NULL, renderRange, &threadIDs[i]);
     }
     //then wait for all to terminate
+    while(true)
+    {
+      int pixelsDone = 0;
+      for(int i = 0; i < RAY_THREADS; i++)
+        pixelsDone += workCounts[i];
+      if(pixelsDone == RAY_W * RAY_H)
+        break;
+      if(fancy)
+      {
+        cout << "Image is " << (100.0 * pixelsDone / RAY_W / RAY_H) << "% done\n";
+        sleep(1);
+      }
+    }
     for(int i = 0; i < RAY_THREADS; i++)
     {
       pthread_join(threads[i], NULL);
@@ -146,13 +167,22 @@ void render(bool write)
   {
     ostringstream oss;
     oss << "ochd_" << (time(NULL) % 10000) << ".png";
+    //need to vertically flip the image for STBI
+    for(int row = 0; row < RAY_H / 2; row++)
+    {
+      for(int i = 0; i < 4 * RAY_W; i++)
+      {
+        byte& top = frameBuf[row * 4 * RAY_W + i];
+        byte& bottom = frameBuf[(RAY_H - 1 - row) * 4 * RAY_W + i];
+        std::swap(top, bottom);
+      }
+    }
     stbi_write_png(oss.str().c_str(), RAY_W, RAY_H, 4, frameBuf, 4 * RAY_W);
   }
 }
 
 vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
 {
-  bmk("Intersecting p = " << p << ", dir = " << dir << " through cube at " << cube << '\n')
   if(dir.x > 0)
   {
     //does origin + t * direction pass through the +x face?
@@ -162,7 +192,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.y >= cube.y && intersect.y <= cube.y + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
-      bmk("Ray hit +X face\n")
       norm = vec3(-1, 0, 0);
       return intersect;
     }
@@ -173,7 +202,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.y >= cube.y && intersect.y <= cube.y + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
-      bmk("Ray hit -X face\n")
       norm = vec3(1, 0, 0);
       return intersect;
     }
@@ -184,7 +212,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
-      bmk("Ray hit +Y face\n")
       norm = vec3(0, -1, 0);
       return intersect;
     }
@@ -195,7 +222,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.z >= cube.z && intersect.z <= cube.z + size)
     {
-      bmk("Ray hit -Y face\n")
       norm = vec3(0, 1, 0);
       return intersect;
     }
@@ -206,7 +232,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.y >= cube.y && intersect.y <= cube.y + size)
     {
-      bmk("Ray hit +Z face\n")
       norm = vec3(0, 0, -1);
       return intersect;
     }
@@ -217,13 +242,22 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
     if(intersect.x >= cube.x && intersect.x <= cube.x + size &&
         intersect.y >= cube.y && intersect.y <= cube.y + size)
     {
-      bmk("Ray hit -Z face\n")
       norm = vec3(0, 0, 1);
       return intersect;
     }
   }
-  assert(false);
-  return vec3(0, 0, 0);
+  cout << "Warning; failed to intersect ray " << p << " : " << dir << " with cube " << cube << '\n';
+  vec3 nudge((rand() % 3 - 1) * 1e-6, (rand() % 3 - 1) * 1e-6, (rand() % 3 - 1) * 1e-6);
+  return rayCubeIntersect(p, normalize(dir + nudge), norm, cube, size);
+}
+
+//desaturate a color
+//k = 0: return shade of grey with same magnitude
+//k = 1: return color
+static vec3 desaturate(vec3 color, float k)
+{
+  float mag = glm::length(color);
+  return vec3(color.x * k + mag * (1-k), color.y * k + mag * (1-k), color.z * k + mag * (1-k));
 }
 
 vec3 trace(vec3 origin, vec3 direction, bool& exact)
@@ -232,25 +266,28 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   float eps = 1e-8;
   //sunlight direction
   vec3 sunlight = glm::normalize(vec3(0.3, -1, 0.1));
-  //cosine of half the angular size of the sun
-  //closer to 1 means smaller sun
-  //(real life value is about 0.99996, too small for this)
-  float cosSunRadius = 0.995;
   //iterate through blocks, finding the faces that player is looking through
   int bounces = 0;
   //color components take on the product of texture components
   vec3 color(1, 1, 1);
+  time_t giveUpTime = time(NULL);
+  //set blockIter to the block that ray is entering
+  vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
+  Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
+  if(fpart(origin.x) < eps && direction.x < 0)
+    blockIter.x -= 1;
+  if(fpart(origin.y) < eps && direction.y < 0)
+    blockIter.y -= 1;
+  if(fpart(origin.z) < eps && direction.z < 0)
+    blockIter.z -= 1;
   while(bounces < MAX_BOUNCES)
   {
-    //set blockIter to the block that ray is entering
-    vec3 blockIter(ipart(origin.x), ipart(origin.y), ipart(origin.z));
-    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
-    if(fpart(origin.x) < eps && direction.x < 0)
-      blockIter.x -= 1;
-    if(fpart(origin.y) < eps && direction.y < 0)
-      blockIter.y -= 1;
-    if(fpart(origin.z) < eps && direction.z < 0)
-      blockIter.z -= 1;
+    if(time(NULL) >= giveUpTime + 3)
+    {
+      cout << "Ray from " << origin << " in direction " << direction << " got stuck!\n";
+      cout << "Current block is " << (int) getBlock(blockIter.x, blockIter.y, blockIter.z) << '\n';
+      return vec3(0, 0, 0);
+    }
     //get chunk that ray is entering,
     //and check if chunk is empty
     int cx = ipart(blockIter.x / 16);
@@ -264,47 +301,38 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     //point of intersection with next cube face (block or chunk)
     vec3 intersect;
     //normal at point of intersection
-    bmk("Tracing ray from " << origin << " in direction " << direction << " through block " << blockIter << '\n')
     vec3 normal;
     if(emptyChunk)
       intersect = rayCubeIntersect(origin, direction, normal, chunkOrigin, 16);
     else
       intersect = rayCubeIntersect(origin, direction, normal, blockIter, 1);
-    vec3 nextBlock(ipart(intersect.x), ipart(intersect.y), ipart(intersect.z));
+    vec3 nextBlock(ipart(intersect.x + eps), ipart(intersect.y + eps), ipart(intersect.z + eps));
     if(fpart(intersect.x) < eps && direction.x < 0)
       nextBlock.x -= 1;
     if(fpart(intersect.y) < eps && direction.y < 0)
       nextBlock.y -= 1;
     if(fpart(intersect.z) < eps && direction.z < 0)
       nextBlock.z -= 1;
-    bmk("Intersection point is " << intersect << " and next block is " << nextBlock << '\n')
-    if(nextBlock.x < -8 || nextBlock.x > chunksX * 16 + 8
-        || nextBlock.y < -8 || nextBlock.y > chunksY * 16 + 8
-        || nextBlock.z < -8 || nextBlock.z > chunksZ * 16 + 8)
+    if(nextBlock.x < -1 || nextBlock.x > chunksX * 16 + 1
+        || nextBlock.y < -1 || nextBlock.y > chunksY * 16 + 1
+        || nextBlock.z < -1 || nextBlock.z > chunksZ * 16 + 1)
     {
       //ray escaped world without hitting anything
       //return the sun color or the sky color
       if(bounces == 0)
       {
         exact = true;
-        if(glm::dot(direction, -sunlight) > cosSunRadius)
-          return vec3(1, 1, 0.7);
-        else
-          return skyBlue;
+        return skyBlue;
       }
       //otherwise, return combined value obtained from bouncing off materials
       //increase sharply if pointing directly at the sun
-      //otherwise, scale according to y component of direction
-      if(glm::dot(direction, -sunlight) > cosSunRadius)
-      {
-        return color * 2.0f;
-      }
-      else
-      {
-        return color * 0.3f;
-      }
+      float sunDot = glm::dot(direction, -sunlight);
+      if(sunDot <= 0)
+        return vec3(0, 0, 0);
+      return color * 2.f;
     }
     Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
+    blockIter = nextBlock;
     if(prevMaterial != nextMaterial)
     {
       //hit a block: sample texture at point of intersection
@@ -315,14 +343,38 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         texel = sample(nextMaterial, BOTTOM, intersect.x, intersect.y, intersect.z);
       else
         texel = sample(nextMaterial, SIDE, intersect.x, intersect.y, intersect.z);
-      //depending on transparency of sampled texel,
-      //choose randomly whether to reflect or refract
-      //TODO: fresnel equations will be applied here
-      exact = true;
-      //show water as a flat blue color, since water has no texture
-      if(nextMaterial == WATER)
-        return vec3(0, 0, 0.8);
-      return vec3(texel);
+      if(MAX_BOUNCES == 1)
+      {
+        exact = true;
+        return vec3(texel);
+      }
+      //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
+      //choose whether to reflect or refract
+      /*
+      if(nextMaterial == WATER && normal.y > 0)
+      {
+        texel = vec4(0.8, 0.9, 0.9, 0.3);
+        normal = waterNormal(intersect);
+      }
+      */
+      if(texel.w > 0.5)
+      {
+        //reflect and blend sampled color and ray color,
+        //but reduce effect and de-saturate after each bounce
+        //this is not realistic but is better visually with the
+        //very saturated texture pack
+        float k = 1.0f / (bounces + 1) / (bounces + 1);
+        color *= 1 - k;
+        color += k * desaturate(vec3(texel), 1 / sqrtf(bounces + 1));
+        //set new ray position and direction based on reflection
+        direction = scatter(direction, normal, nextMaterial);
+        origin = intersect;
+        bounces++;
+      }
+      else
+      {
+        origin = intersect;
+      }
       /*
       if((float(rand()) / RAND_MAX) < texel.w)
       {
@@ -333,19 +385,17 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         color *= 1 - k;
         color += k * vec3(texel);
         //set new ray position and direction based on reflection
-        direction = scatter(direction, normal, block);
+        direction = scatter(direction, normal, nextMaterial);
         origin = intersect;
         bounces++;
       }
       else
       {
         //refract
-        bmk("refracting\n")
-        float n1 = refractIndex[prevBlock];
-        float n2 = refractIndex[block];
+        float n1 = refractIndex[prevMaterial];
+        float n2 = refractIndex[nextMaterial];
         origin = intersect;
         direction = refract(direction, normal, n1, n2);
-        bmk("Direction now " << direction << '\n')
         blockIter = nextBlock;
         bounces++;
       }
@@ -390,7 +440,7 @@ vec3 refract(vec3 ray, vec3 normal, float n1, float n2)
   return r * ray + (r * c - sqrtf(1 - r * r * (1 - c * c))) * normal;
 }
 
-vec3 getWaterNormal(vec3 position)
+vec3 waterNormal(vec3 position)
 {
   //increase this for more ripples, but 1 is probably most realistic
   const int frequency = 1;
@@ -410,12 +460,14 @@ void toggleFancy()
   if(fancy)
   {
     MAX_BOUNCES = 8;
-    RAYS_PER_PIXEL = 100;
+    RAYS_PER_PIXEL = 15;
+    RAY_THREADS = 4;
   }
   else
   {
     MAX_BOUNCES = 1;
     RAYS_PER_PIXEL = 1;
+    RAY_THREADS = 4;
   }
 }
 
