@@ -107,15 +107,15 @@ float specularity[NUM_TILES] =
 {
   0,        //AIR
   0.6,      //STONE
-  0.8,      //DIRT
-  0.6,      //COAL
-  0.6,      //IRON
-  0.6,      //GOLD
-  0.9,      //DIAMOND
-  0.5,      //LOG
+  0.3,      //DIRT
+  0.5,      //COAL
+  0.5,      //IRON
+  0.5,      //GOLD
+  0.5,      //DIAMOND
+  0.4,      //LOG
   0.3,      //LEAF
-  1.0,      //WATER
-  0.5,      //SAND
+  0.99,      //WATER
+  0.6,      //SAND
   1.0,      //GLASS
   0.9,      //OBSIDIAN
   0.9,      //QUARTZ
@@ -138,7 +138,7 @@ float refractIndex[NUM_TILES] =
   1.333,    //WATER
   1,
   1.517,    //GLASS
-  1.517,    //OBSIDIAN
+  1.5,      //OBSIDIAN
   1.46,     //QUARTZ
   1,
   1

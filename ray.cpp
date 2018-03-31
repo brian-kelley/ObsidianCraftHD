@@ -474,7 +474,7 @@ void toggleFancy()
     RAY_W = 1600;
     RAY_H = 900;
     MAX_BOUNCES = 8;
-    RAYS_PER_PIXEL = 300;
+    RAYS_PER_PIXEL = 500;
     RAY_THREADS = 4;
   }
   else
