@@ -351,7 +351,9 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       {
         //light, faint blue-green
         texel = vec4(0.7, 0.8, 0.9, 0);
-        if(normal.y != 0)
+        if(normal.y < 0)
+          normal = -waterNormal(intersect);
+        else if(normal.y > 0)
           normal = waterNormal(intersect);
       }
       else if(texel.w < 0.5)
@@ -395,7 +397,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
           bounces++;
           refracted = true;
         }
-        else if((float) rand() / RAND_MAX > refractProb)
+        else if(float(rand()) / RAND_MAX < refractProb)
         {
           direction = normalize(glm::refract(direction, normal, nPrev / nNext));
           //apply color to ray
@@ -452,8 +454,8 @@ vec3 waterNormal(vec3 position)
   const double k = 0.01;
   double scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
   double x = fpart(position.x) * 2 * M_PI * frequency + scaledTime;
-  double y = fpart(position.y) * 2 * M_PI * frequency + scaledTime;
-  return normalize(vec3(-k * cos(x) * cos(y), 1, k * sin(x) * sin(y)));
+  double z = fpart(position.z) * 2 * M_PI * frequency + scaledTime;
+  return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
 }
 
 void toggleFancy()
@@ -462,7 +464,7 @@ void toggleFancy()
   if(fancy)
   {
     MAX_BOUNCES = 8;
-    RAYS_PER_PIXEL = 80;
+    RAYS_PER_PIXEL = 40;
     RAY_THREADS = 4;
   }
   else
