@@ -6,8 +6,8 @@
 #include "world.hpp"
 
 //Width and height of the raytraced framebuffer
-#define RAY_W 640
-#define RAY_H 480
+extern int RAY_W;
+extern int RAY_H;
 extern int RAY_THREADS;
 extern int RAYS_PER_PIXEL;
 extern int MAX_BOUNCES;

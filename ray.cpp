@@ -18,6 +18,8 @@ using std::ostringstream;
 byte* frameBuf;
 
 extern double currentTime;
+int RAY_W = 480;
+int RAY_H = 320;
 int RAY_THREADS = 4;
 int RAYS_PER_PIXEL = 1;
 int MAX_BOUNCES = 1;
@@ -463,15 +465,21 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
+    RAY_W = 1920;
+    RAY_H = 1080;
     MAX_BOUNCES = 8;
-    RAYS_PER_PIXEL = 40;
+    RAYS_PER_PIXEL = 300;
     RAY_THREADS = 4;
   }
   else
   {
+    RAY_W = 480;
+    RAY_H = 320;
     MAX_BOUNCES = 1;
     RAYS_PER_PIXEL = 1;
     RAY_THREADS = 4;
   }
+  delete[] frameBuf;
+  frameBuf = new byte[4 * RAY_W * RAY_H];
 }
 
