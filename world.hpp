@@ -1,7 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
-#define SEED 12
+#define SEED 1337
 
 #include "tiles.hpp"
 
@@ -17,9 +17,9 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 12
-#define chunksY 16
-#define chunksZ 12
+#define chunksX 32
+#define chunksY 32
+#define chunksZ 32
 #define totalChunks (chunksX * chunksY * chunksZ)
 
 void flatGen();

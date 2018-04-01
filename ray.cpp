@@ -290,7 +290,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       return color;
       if(sunDot <= 0)
         return vec3(0, 0, 0);
-      return color * 1.5f;
+      return color * 1.7f;
     }
     //set blockIter to the block that ray is entering
     vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
@@ -380,7 +380,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         float cosTheta = glm::dot(-normal, direction);
         float r0 = (nPrev - nNext) / (nPrev + nNext);
         r0 *= r0;
-        float refractProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+        float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
         if(nPrev == nNext)
         {
           //no bounce and no change in direction
@@ -407,7 +407,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
           bounces++;
           refracted = true;
         }
-        else if(float(rand()) / RAND_MAX < refractProb)
+        else if(float(rand()) / RAND_MAX > reflectProb)
         {
           direction = normalize(glm::refract(direction, normal, nPrev / nNext));
           //apply color to ray
@@ -424,9 +424,10 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         //but reduce effect and de-saturate after each bounce
         //this is not realistic but is better visually with the
         //very saturated texture pack
-        float k = 1.0f * powf(bounces + 1, -2);
+        float k = 1.0f * powf(bounces + 1, -1.5);
         color *= (1 - k);
-        color += k * desaturate(vec3(texel), 1 / (bounces + 1));
+        //color += k * desaturate(vec3(texel), 1 / (bounces + 1));
+        color += k * vec3(texel);
         //set new ray position and direction based on reflection
         direction = scatter(direction, normal, nextMaterial);
         bounces++;
@@ -440,8 +441,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
 }
 
 vec3 scatter(vec3 direction, vec3 normal, Block material)
-{
-  //compute ideal reflection vector
+{ //compute ideal reflection vector
   vec3 s = normalize(glm::reflect(direction, normal));
   //compute the specular reflectino vector s
   //combine r and s based on material specularity
@@ -471,9 +471,9 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 1600;
-    RAY_H = 900;
-    MAX_BOUNCES = 8;
+    RAY_W = 1920;
+    RAY_H = 1080;
+    MAX_BOUNCES = 10;
     RAYS_PER_PIXEL = 500;
     RAY_THREADS = 4;
   }

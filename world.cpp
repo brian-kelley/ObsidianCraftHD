@@ -132,7 +132,7 @@ void terrainGen()
     Block* chunkBlocks = (Block*) chunk->blocks;
     for(int i = 0; i < 4096; i++)
     {
-      chunkBlocks[i] = 4;
+      chunkBlocks[i] = 3;
     }
     for(int octave = 2; octave < 4; octave++)
     {
