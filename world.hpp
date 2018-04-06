@@ -17,9 +17,9 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 32
-#define chunksY 32
-#define chunksZ 32
+#define chunksX 8
+#define chunksY 4
+#define chunksZ 8
 #define totalChunks (chunksX * chunksY * chunksZ)
 
 void flatGen();

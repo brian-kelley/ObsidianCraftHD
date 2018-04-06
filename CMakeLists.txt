@@ -3,14 +3,11 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.10)
 set(CMAKE_OSX_SYSROOT /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk)
 project (ObsidianCraftHD)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
-
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=c11 -Wall -ffast-math -fassociative-math -g")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=gnu11 -Wall -ffast-math -fassociative-math -g")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++11 -Wall -Wno-extern-c-compat -ffast-math -fassociative-math -g")
 
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -std=c11 -Wall -O2 -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -ffast-math")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -std=c++11 -O2 -Wall -Ofast -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -Wno-extern-c-compat")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -std=gnu11 -Wall -O3 -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -ffast-math")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -std=c++11 -O3 -Wall -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -Wno-extern-c-compat")
 
 find_library(PTHREAD_LIB pthread)
 if(NOT PTHREAD_LIB)
@@ -30,6 +27,8 @@ if(NOT OPENGL_LIB)
     message(FATAL_ERROR "OpenGL library not found.")
   endif()
 endif()
+
+include_directories(/usr/local/include)
 
 # Create Mandelbrot executable
 add_executable(OCHD

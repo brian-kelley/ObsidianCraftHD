@@ -16,8 +16,8 @@ SDL_GLContext glContext;
 GLuint textureID;
 bool running;
 
-const int viewportW = RAY_W;
-const int viewportH = RAY_H;
+const int viewportW = 640;
+const int viewportH = 480;
 
 double currentTime;
 

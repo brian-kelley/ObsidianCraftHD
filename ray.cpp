@@ -7,6 +7,7 @@
 #include <ctime>
 #include <pthread.h>
 #include <unistd.h>
+#include "stdatomic.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -46,7 +47,7 @@ ostream& operator<<(ostream& os, vec4 v)
   return os;
 }
 
-static int* workCounts;
+static atomic_int workCounter;
 
 void renderPixel(int x, int y)
 {
@@ -88,19 +89,19 @@ void renderPixel(int x, int y)
 }
 
 //worker function for threads
-void* renderRange(void* data)
+void* renderWorker(void*)
 {
-  //what is my thread index
-  int index = *((int*) data);
-  workCounts[index] = 0;
-  //range of pixels this thread is responsible for
-  int workBegin = RAY_W * RAY_H * index / RAY_THREADS;
-  int workEnd = RAY_W * RAY_H * (index + 1) / RAY_THREADS;
-  for(int i = workBegin; i < workEnd; i++)
+  while(true)
   {
-    //distribute image columns for better load balancing
-    renderPixel(i / RAY_H, i % RAY_H);
-    workCounts[index]++;
+    const int batchSize = 8;
+    int workIndex = atomic_fetch_add(&workCounter, batchSize);
+    for(int i = 0; i < batchSize; i++)
+    {
+      if(workIndex >= RAY_W * RAY_H)
+        return NULL;
+      renderPixel(workIndex % RAY_W, workIndex / RAY_W);
+      workIndex++;
+    }
   }
   return NULL;
 }
@@ -120,49 +121,32 @@ float fpart(float in)
 
 void render(bool write)
 {
-  if(RAY_THREADS == 1)
+  pthread_t threads[RAY_THREADS];
+  //reset counter - as image is rendered,
+  //this is atomically incremented up to RAY_W * RAY_H
+  atomic_store(&workCounter, 0);
+  //launch workers
+  for(int i = 0; i < RAY_THREADS; i++)
   {
-    //do rendering in main thread only
-    for(int y = 0; y < RAY_H; y++)
+    pthread_create(threads + i, NULL, renderWorker, NULL);
+  }
+  //then wait for all to terminate
+  while(true)
+  {
+    int pixelsDone = atomic_load(&workCounter);
+    if(fancy)
     {
-      for(int x = 0; x < RAY_W; x++)
-      {
-        renderPixel(x, y);
-      }
+      printf("Image is %.1f%% done\n", 100.0 * pixelsDone / (RAY_W * RAY_H));
+      sleep(1);
+    }
+    if(pixelsDone >= RAY_W * RAY_H)
+    {
+      break;
     }
   }
-  else
+  for(int i = 0; i < RAY_THREADS; i++)
   {
-    int threadIDs[RAY_THREADS];
-    for(int i = 0; i < RAY_THREADS; i++)
-    {
-      threadIDs[i] = i;
-    }
-    pthread_t threads[RAY_THREADS];
-    workCounts = new int[RAY_THREADS];
-    //launch threads
-    for(int i = 0; i < RAY_THREADS; i++)
-    {
-      pthread_create(threads + i, NULL, renderRange, &threadIDs[i]);
-    }
-    //then wait for all to terminate
-    while(true)
-    {
-      int pixelsDone = 0;
-      for(int i = 0; i < RAY_THREADS; i++)
-        pixelsDone += workCounts[i];
-      if(pixelsDone == RAY_W * RAY_H)
-        break;
-      if(fancy)
-      {
-        cout << "Image is " << (100.0 * pixelsDone / RAY_W / RAY_H) << "% done\n";
-        sleep(1);
-      }
-    }
-    for(int i = 0; i < RAY_THREADS; i++)
-    {
-      pthread_join(threads[i], NULL);
-    }
+    pthread_join(threads[i], NULL);
   }
   if(write)
   {
@@ -287,10 +271,11 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       //otherwise, return combined value obtained from bouncing off materials
       //increase sharply if pointing directly at the sun
       float sunDot = glm::dot(direction, -sunlight);
-      return color;
       if(sunDot <= 0)
         return vec3(0, 0, 0);
-      return color * 1.7f;
+      const float ambient = 0.7;
+      const float diffuse = 1.7;
+      return color * (ambient + diffuse * sunDot);
     }
     //set blockIter to the block that ray is entering
     vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
@@ -390,22 +375,13 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         {
           //check for total internal reflection here
           float cosCriticalAngle = cosf(asinf(nNext / nPrev));
-          if(cosTheta <= cosCriticalAngle + eps)
-          {
-            direction = glm::reflect(direction, normal);
-          }
-          else
+          if(cosTheta >= cosCriticalAngle + eps)
           {
             //always refract when going down in index of refraction
-            direction = glm::refract(direction, normal, nPrev / nNext);
+            direction = normalize(glm::refract(direction, normal, nPrev / nNext));
+            refracted = true;
+            bounces++;
           }
-          //apply color to ray
-          color.x *= texel.x;
-          color.y *= texel.y;
-          color.z *= texel.z;
-          direction = normalize(direction);
-          bounces++;
-          refracted = true;
         }
         else if(float(rand()) / RAND_MAX > reflectProb)
         {
@@ -421,12 +397,11 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       if(!refracted)
       {
         //reflect and blend sampled color and ray color,
-        //but reduce effect and de-saturate after each bounce
-        //this is not realistic but is better visually with the
-        //very saturated texture pack
-        float k = 1.0f * powf(bounces + 1, -1.5);
-        color *= (1 - k);
-        //color += k * desaturate(vec3(texel), 1 / (bounces + 1));
+        //but de-saturate after each bounce
+        float k = 1.0f / (bounces + 1);
+        float brightness = glm::length(vec3(texel));
+        color *= brightness * (1 - k);
+        //color += k * desaturate(vec3(texel), powf(bounces + 1, -2));
         color += k * vec3(texel);
         //set new ray position and direction based on reflection
         direction = scatter(direction, normal, nextMaterial);
@@ -471,16 +446,16 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 1920;
-    RAY_H = 1080;
-    MAX_BOUNCES = 10;
-    RAYS_PER_PIXEL = 500;
+    RAY_W = 320;
+    RAY_H = 200;
+    MAX_BOUNCES = 8;
+    RAYS_PER_PIXEL = 200;
     RAY_THREADS = 4;
   }
   else
   {
-    RAY_W = 480;
-    RAY_H = 320;
+    RAY_W = 100;
+    RAY_H = 80;
     MAX_BOUNCES = 1;
     RAYS_PER_PIXEL = 1;
     RAY_THREADS = 4;
