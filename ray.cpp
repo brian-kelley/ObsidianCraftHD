@@ -267,12 +267,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   vec3 color(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
-    if(origin.x <= 0 ||
-        origin.x >= chunksX * 16 ||
-        origin.y <= 0 ||
-        origin.y >= chunksY * 16 ||
-        origin.z <= 0 ||
-        origin.z >= chunksZ * 16)
+    if((origin.x <= 0 && direction.x <= 0) ||
+        (origin.x >= chunksX * 16 && direction.x >= 0) ||
+        (origin.y <= 0 && direction.y <= 0) ||
+        (origin.y >= chunksY * 16 && direction.y >= 0) ||
+        (origin.z <= 0 && direction.z <= 0) ||
+        (origin.z >= chunksZ * 16 && direction.z >= 0))
     {
       return processEscapedRay(origin, direction, color, bounces, exact);
     }

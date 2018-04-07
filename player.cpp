@@ -18,6 +18,8 @@ vec3 vel;
 float yaw;
 float pitch;
 
+int GRAVITY = 20;
+
 mat4 view;
 mat4 proj;
 mat4 viewInv;
@@ -76,7 +78,7 @@ void initPlayer()
   onGround = false;
   vel = vec3(0, 0, 0);
   yaw = 0;
-  pitch = 0;
+  pitch = -M_PI / 2;
   updateView();
   proj = glm::perspective<float>(M_PI / 4, (float) RAY_W / RAY_H, NEAR_PLANE, FAR_PLANE);
   projInv = glm::inverse(proj);
@@ -175,10 +177,12 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump,
   bool viewStale = false;
   if(dy)
   {
+    GRAVITY = 0;
     vel.y = dy * JUMP_SPEED;
   }
   else if(jump && onGround)
   {
+    GRAVITY = 20;
     vel.y = JUMP_SPEED;
     onGround = false;
   }
@@ -229,6 +233,9 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump,
       onGround = true;
     }
   }
+  //clear vertical velocity each frame while flying
+  if(GRAVITY == 0)
+    vel.y = 0;
   //move horizontally
   moveHitbox(&hb, vel.x > 0 ? HB_PX : HB_MX, fabsf(dt * vel.x));
   moveHitbox(&hb, vel.z > 0 ? HB_PZ : HB_MZ, fabsf(dt * vel.z));
