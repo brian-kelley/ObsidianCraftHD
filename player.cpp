@@ -11,6 +11,8 @@ ostream& operator<<(ostream& os, vec4 v);
 
 //position
 vec3 player;
+//look direction
+vec3 look;
 //velocity
 vec3 vel;
 float yaw;
@@ -60,10 +62,10 @@ enum
 
 static void updateView()
 {
-  vec3 dir(cosf(pitch) * cosf(yaw), sinf(pitch), cosf(pitch) * sinf(yaw));
+  look = vec3(cosf(pitch) * cosf(yaw), sinf(pitch), cosf(pitch) * sinf(yaw));
   vec3 right(-sinf(yaw), 0, cosf(yaw));
-  vec3 up = glm::cross(right, dir);
-  view = glm::lookAt(player, player + dir, up);
+  vec3 up = glm::cross(right, look);
+  view = glm::lookAt(player, player + look, up);
   viewInv = glm::inverse(view);
 }
 
@@ -74,7 +76,7 @@ void initPlayer()
   onGround = false;
   vel = vec3(0, 0, 0);
   yaw = 0;
-  pitch = -M_PI / 2;
+  pitch = 0;
   updateView();
   proj = glm::perspective<float>(M_PI / 4, (float) RAY_W / RAY_H, NEAR_PLANE, FAR_PLANE);
   projInv = glm::inverse(proj);
@@ -168,10 +170,14 @@ bool moveHitbox(Hitbox* hb, int dir, float d)
 //dt = elapsed time
 //(dx, dz) = player motion (WASD)
 //(dyaw, dpitch) = mouse motion
-void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
+void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump, int dy)
 {
   bool viewStale = false;
-  if(jump && onGround)
+  if(dy)
+  {
+    vel.y = dy * JUMP_SPEED;
+  }
+  else if(jump && onGround)
   {
     vel.y = JUMP_SPEED;
     onGround = false;
@@ -204,7 +210,6 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
   vec3 old = player;
   Hitbox hb(player.x - PLAYER_WIDTH / 2, player.y - PLAYER_EYE, player.z - PLAYER_WIDTH / 2, PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_WIDTH);
   //gravitational acceleration
-#ifndef NOCLIP
   vel.y -= dt * GRAVITY;
   if(vel.y < -TERMINAL_VELOCITY)
     vel.y = -TERMINAL_VELOCITY;
@@ -224,12 +229,9 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
       onGround = true;
     }
   }
-#endif
   //move horizontally
   moveHitbox(&hb, vel.x > 0 ? HB_PX : HB_MX, fabsf(dt * vel.x));
   moveHitbox(&hb, vel.z > 0 ? HB_PZ : HB_MZ, fabsf(dt * vel.z));
-  //check if player is suspended in the air (clear onGround if so)
-#ifndef NOCLIP
   //clamp player to world boundaries (can't fall out of world)
   if(hb.x < 0)
     hb.x = 0;
@@ -243,7 +245,6 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump)
     hb.z = 0;
   if(hb.z > chunksZ * 16 - PLAYER_WIDTH)
     hb.z = chunksZ * 16 - PLAYER_WIDTH;
-#endif
   //copy position back to player vector
   player.x = hb.x + PLAYER_WIDTH / 2;
   player.y = hb.y + PLAYER_EYE;

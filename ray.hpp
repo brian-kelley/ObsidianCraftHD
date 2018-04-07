@@ -22,6 +22,7 @@ void render(bool write);
 vec3 trace(vec3 origin, vec3 direction, bool& exact);
 vec3 scatter(vec3 direction, vec3 normal, Block material);
 vec3 waterNormal(vec3 position);
+vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& exact);
 void toggleFancy();
 
 std::ostream& operator<<(std::ostream& os, vec3 v);

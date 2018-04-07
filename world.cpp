@@ -23,7 +23,10 @@ Block getBlock(int x, int y, int z)
 {
   if(!blockInBounds(x, y, z))
   {
-    return AIR;
+    if(y < chunksY * 16 / 2)
+      return WATER;
+    else
+      return AIR;
   }
   return chunks[x / 16][y / 16][z / 16].blocks[x % 16][y % 16][z % 16];
 }
@@ -127,12 +130,27 @@ void terrainGen()
     int cx = c % chunksX;
     int cy = (c / chunksX) % chunksY;
     int cz = c / (chunksX * chunksY);
-    Chunk* chunk = &chunks[cx][cy][cz];
-    //set all blocks to 4
-    Block* chunkBlocks = (Block*) chunk->blocks;
-    for(int i = 0; i < 4096; i++)
+    for(int i = 0; i < 16; i++)
     {
-      chunkBlocks[i] = 3;
+      for(int j = 0; j < 16; j++)
+      {
+        for(int k = 0; k < 16; k++)
+        {
+          int x = cx * 16 + i;
+          int y = cy * 16 + j;
+          int z = cz * 16 + k;
+          float dist = sqrtf(powf(x - wx / 2, 2) + powf(y - wy / 2, 2));
+          float radius = std::min(wx / 2, wz / 2);
+          if(dist < radius * 0.5)
+            setBlock(4, x, y, z);
+          else if(dist < radius * 0.7)
+            setBlock(2, x, y, z);
+          else if(dist < radius * 0.9)
+            setBlock(1, x, y, z);
+          else
+            setBlock(0, x, y, z);
+        }
+      }
     }
     for(int octave = 2; octave < 4; octave++)
     {

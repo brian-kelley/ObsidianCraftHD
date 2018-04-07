@@ -4,6 +4,7 @@
 #include "ray.hpp"
 #include "world.hpp"
 #include "player.hpp"
+#include "keyframe.hpp"
 #include <sys/types.h>
 #include <unistd.h>
 #include <sstream>
@@ -91,10 +92,10 @@ void processInput()
 {
   SDL_PumpEvents();
   int dx = 0;
+  int dy = 0;
   int dz = 0;
   float dyaw = 0;
   float dpitch = 0;
-  bool jump = false;
   SDL_Event event;
   while(SDL_PollEvent(&event))
   {
@@ -103,11 +104,7 @@ void processInput()
       case SDL_KEYDOWN:
         if(event.key.state == SDL_PRESSED)
         {
-          if(event.key.keysym.scancode == SDL_SCANCODE_SPACE)
-          {
-            jump = true;
-          }
-          else if(event.key.keysym.scancode == SDL_SCANCODE_F)
+          if(event.key.keysym.scancode == SDL_SCANCODE_F)
           {
             //Render a high quality screenshot of the current view
             //Fork a new process to do this so that the original interactive
@@ -116,9 +113,9 @@ void processInput()
             {
               cout << "Forked rendering process " << getpid() << '\n';
               cout << "You can close this application and the rendering will still run.\n";
-              //renice self to keep system responsive with a bunch of threads running
+              //renice self to keep system responsive with a bunch of jobs running
               std::ostringstream oss;
-              oss << "renice -n 5 -p " << getpid() << '\n';
+              oss << "renice -n 5 -p " << getpid() << " &> /dev/null";
               system(oss.str().c_str());
               toggleFancy();
               render(true);
@@ -126,6 +123,10 @@ void processInput()
               cout << "Done rendering screenshot.\n";
               exit(0);
             }
+          }
+          else if(event.key.keysym.scancode == SDL_SCANCODE_Y)
+          {
+            captureKeyframe();
           }
           else if(event.key.keysym.scancode == SDL_SCANCODE_Q)
           {
@@ -155,12 +156,18 @@ void processInput()
   const Uint8* keystate = SDL_GetKeyboardState(NULL);
   if(keystate[SDL_SCANCODE_W])
     dx++;
-  if(keystate[SDL_SCANCODE_A])
-    dz--;
   if(keystate[SDL_SCANCODE_S])
     dx--;
   if(keystate[SDL_SCANCODE_D])
     dz++;
+  if(keystate[SDL_SCANCODE_A])
+    dz--;
+  //T, G control up/down
+  if(keystate[SDL_SCANCODE_T])
+    dy++;
+  if(keystate[SDL_SCANCODE_G])
+    dy--;
+  //ijkl controls look direction
   if(keystate[SDL_SCANCODE_I])
     dpitch = -3;
   if(keystate[SDL_SCANCODE_J])
@@ -169,23 +176,23 @@ void processInput()
     dpitch = 3;
   if(keystate[SDL_SCANCODE_L])
     dyaw = 3;
+  bool jump = keystate[SDL_SCANCODE_SPACE];
   Uint32 nowTicks = SDL_GetTicks();
   float dt = (nowTicks - ticksLastFrame) / 1000.0f;
   ticksLastFrame = nowTicks;
-  updatePlayer(dt, dx, dz, dyaw, dpitch, jump);
+  updatePlayer(dt, dx, dz, dyaw, dpitch, jump, dy);
 }
 
-extern float fpart(float);
-extern float ipart(float);
-
-int main()
+int main(int argc, const char** argv)
 {
+  if(argc == 2 && strcmp(argv[1], "--animate") == 0)
+  {
+    loadKeyframes("keyframes.txt");
+  }
   frameBuf = new byte[4 * RAY_W * RAY_H];
   cout << "Generating terrain...\n";
   terrainGen();
-  //flatGen();
   cout << "Done with terrain\n";
-  //printWorldComposition();
   initWindow();
   initAtlas();
   initTexture();
@@ -199,7 +206,7 @@ int main()
     time_t currentTimeSec = time(NULL);
     if(timeSec != currentTimeSec)
     {
-      printf("%i frames per second\n", fps);
+      //printf("%i frames per second\n", fps);
       fps = 0;
       timeSec = currentTimeSec;
     }
@@ -210,6 +217,7 @@ int main()
     fps++;
   }
   SDL_Quit();
+  saveKeyframes("keyframes.txt");
   return 0;
 }
 
