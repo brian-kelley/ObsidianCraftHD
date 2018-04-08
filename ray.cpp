@@ -523,10 +523,10 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
   //this can be surface reflection, refraction or internal reflection
   sunDot = glm::dot(direction, -sunlight);
   const float ambient = 1.0;
-  const float diffuse = 5.0;
+  const float diffuse = 2.0;
   if(sunDot < 0)
     sunDot = 0;
-  return (ambient + diffuse * powf(sunDot, 12)) * color;
+  return (ambient + diffuse * sunDot) * color;
 }
 
 void toggleFancy()
@@ -534,10 +534,10 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 320;
-    RAY_H = 240;
-    MAX_BOUNCES = 8;
-    RAYS_PER_PIXEL = 150;
+    RAY_W = 640;
+    RAY_H = 480;
+    MAX_BOUNCES = 6;
+    RAYS_PER_PIXEL = 100;
     RAY_THREADS = 4;
   }
   else

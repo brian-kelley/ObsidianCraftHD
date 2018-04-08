@@ -56,11 +56,6 @@ struct Spline
 {
   Spline(vec3* points)
   {
-    for(int i = 0; i < 4; i++)
-    {
-      cout << points[i] << '\n';
-    }
-    cout << '\n';
     //columns of G are point coordinates
     glm::mat4x3 G;
     for(int i = 0; i < 4; i++)
@@ -92,7 +87,7 @@ struct Spline
     //normalize ulength
     for(int i = 0; i <= splineSteps; i++)
     {
-      ulength[i] /= ulength[splineSteps];
+      ulength[i] /= arclen;
     }
   }
   glm::mat4x3 matrix;
@@ -116,6 +111,8 @@ void setViewQuat(glm::quat q)
   pitch = angles.y;
   updateView();
 }
+
+void toggleFancy();
 
 void animate(float sec, string folder)
 {
@@ -147,44 +144,37 @@ void animate(float sec, string folder)
   for(int i = 0; i <= n; i++)
   {
     arclenPrefix[i] /= arclenPrefix[n];
-    cout << "arclenPrefix[i] = " << arclenPrefix[i] << '\n';
   }
-  for(int i = 0; i < splines.size(); i++)
-  {
-    cout << "spline " << i << " has length " << splines[i].arclen << '\n';
-  }
-  //float timesteps = sec * 60;
-  float timesteps = 40;
+  float timesteps = sec * 30;
   vector<glm::quat> keyframeQuats;
   for(auto& kf : keyframes)
   {
     keyframeQuats.push_back(eulerToQuat(kf.y, kf.p));
   }
+  toggleFancy();
   for(int f = 0; f < timesteps; f++)
   {
     cout << "Rendering frame " << f+1 << " of " << timesteps << '\n';
     float t = float(f) / timesteps;
-    cout << "t = " << t << '\n';
     //figure out which spline t is in
     int current;
     for(current = 0; current < n; current++)
     {
-      if(t >= arclenPrefix[current])
+      if(t >= arclenPrefix[current] && t < arclenPrefix[current + 1])
+      {
         break;
+      }
     }
     Spline& spline = splines[current];
-    cout << "in spline " << current << " with arclen " << spline.arclen << '\n';
-    float st = (t - arclenPrefix[current]) * spline.arclen;
-    cout << "t within spline is " << st << '\n';
+    float st = (t - arclenPrefix[current]) / (arclenPrefix[current + 1] - arclenPrefix[current]);
     float su = 0;
     //figure out proper t within spline to keep constant speed
     for(int i = 0; i < splineSteps; i++)
     {
-      if(st >= spline.ulength[i])
+      if(st >= spline.ulength[i] && st < spline.ulength[i + 1])
       {
         float k = (st - spline.ulength[i]) / (spline.ulength[i + 1] - spline.ulength[i]);
         su = k * spline.ulength[i + 1] + (1 - k) * spline.ulength[i];
-        cout << "u within spline is " << su << '\n';
         break;
       }
     }
@@ -192,13 +182,11 @@ void animate(float sec, string folder)
     vec4 splineArg(1, su, su*su, su*su*su);
     //set camera position
     player = spline.matrix * splineArg;
-    //slerp between the current two keyframe orientations
+    //slerp between the current two keyframe orientations (shortest path)
     setViewQuat(glm::slerp(keyframeQuats[current], keyframeQuats[(current + 1) % n], su));
-    cout << "camera position is " << player << '\n';
-    cout << "player look dir is " << look << '\n';
-    ostringstream oss;
-    oss << folder << "/f_" << f << ".png";
-    render(true, oss.str());
+    char fname[32];
+    sprintf(fname, "%s/f_%05d.png", folder.c_str(), f);
+    render(true, string(fname));
   }
 }
 

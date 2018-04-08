@@ -17,9 +17,9 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 12
-#define chunksY 6
-#define chunksZ 12
+#define chunksX 24
+#define chunksY 12
+#define chunksZ 24
 #define totalChunks (chunksX * chunksY * chunksZ)
 #define seaLevel (chunksY * 16 / 2)
 

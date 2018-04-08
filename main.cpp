@@ -114,12 +114,17 @@ void processInput()
               cout << "Forked rendering process " << getpid() << '\n';
               cout << "You can close this application and the rendering will still run.\n";
               //renice self to keep system responsive with a bunch of jobs running
-              std::ostringstream oss;
-              oss << "renice -n 5 -p " << getpid() << " &> /dev/null";
-              system(oss.str().c_str());
+              {
+                std::ostringstream oss;
+                oss << "renice -n 5 -p " << getpid() << " &> /dev/null";
+                system(oss.str().c_str());
+              }
               toggleFancy();
-              render(true);
-              toggleFancy();
+              {
+                std::ostringstream oss;
+                oss << "ochd_" << (time(NULL) % 1000) << ".png";
+                render(true, oss.str());
+              }
               cout << "Done rendering screenshot.\n";
               exit(0);
             }
@@ -189,36 +194,44 @@ int main(int argc, const char** argv)
   cout << "Generating terrain...\n";
   terrainGen();
   cout << "Done with terrain\n";
-  initWindow();
+  bool doAnimate = argc == 2 && strcmp(argv[1], "--animate") == 0;
+  if(!doAnimate)
+  {
+    initWindow();
+  }
   initAtlas();
   initTexture();
   initPlayer();
-  if(argc == 2 && strcmp(argv[1], "--animate") == 0)
+  if(doAnimate)
   {
     loadKeyframes("keyframes.txt");
-    animate(10, "frames");
+    animate(20, "frames");
+    exit(0);
   }
-  SDL_RaiseWindow(window);
-  time_t timeSec = time(NULL);
-  int fps = 0;
-  running = true;
-  while(running)
+  if(!doAnimate)
   {
-    time_t currentTimeSec = time(NULL);
-    if(timeSec != currentTimeSec)
+    SDL_RaiseWindow(window);
+    time_t timeSec = time(NULL);
+    int fps = 0;
+    running = true;
+    while(running)
     {
-      //printf("%i frames per second\n", fps);
-      fps = 0;
-      timeSec = currentTimeSec;
+      time_t currentTimeSec = time(NULL);
+      if(timeSec != currentTimeSec)
+      {
+        //printf("%i frames per second\n", fps);
+        fps = 0;
+        timeSec = currentTimeSec;
+      }
+      currentTime = SDL_GetTicks() / 1000.f;
+      //process input also updates player physics
+      processInput();
+      renderFrame();
+      fps++;
     }
-    currentTime = SDL_GetTicks() / 1000.f;
-    //process input also updates player physics
-    processInput();
-    renderFrame();
-    fps++;
+    SDL_Quit();
+    saveKeyframes("keyframes.txt");
   }
-  SDL_Quit();
-  saveKeyframes("keyframes.txt");
   return 0;
 }
 
