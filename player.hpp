@@ -33,6 +33,7 @@ extern mat4 view;
 extern mat4 proj;
 
 void initPlayer();
+void updateView();
 void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump, int dy);
 
 #endif

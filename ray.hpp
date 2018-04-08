@@ -2,8 +2,11 @@
 #define RAY_HEADER
 
 #include <iostream>
+#include <string>
 #include "glmHeaders.hpp"
 #include "world.hpp"
+
+using std::string;
 
 //Width and height of the raytraced framebuffer
 extern int RAY_W;
@@ -17,7 +20,7 @@ extern byte* frameBuf;
 
 void initRay();
 //if write, produce a PNG file of the framebuffer after rendering
-void render(bool write);
+void render(bool write, string fname = "");
 //get light contribution from a single ray
 vec3 trace(vec3 origin, vec3 direction, bool& exact);
 vec3 scatter(vec3 direction, vec3 normal, Block material);

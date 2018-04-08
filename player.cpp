@@ -62,7 +62,7 @@ enum
   HB_PZ
 };
 
-static void updateView()
+void updateView()
 {
   look = vec3(cosf(pitch) * cosf(yaw), sinf(pitch), cosf(pitch) * sinf(yaw));
   vec3 right(-sinf(yaw), 0, cosf(yaw));

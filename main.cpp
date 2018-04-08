@@ -185,10 +185,6 @@ void processInput()
 
 int main(int argc, const char** argv)
 {
-  if(argc == 2 && strcmp(argv[1], "--animate") == 0)
-  {
-    loadKeyframes("keyframes.txt");
-  }
   frameBuf = new byte[4 * RAY_W * RAY_H];
   cout << "Generating terrain...\n";
   terrainGen();
@@ -197,6 +193,11 @@ int main(int argc, const char** argv)
   initAtlas();
   initTexture();
   initPlayer();
+  if(argc == 2 && strcmp(argv[1], "--animate") == 0)
+  {
+    loadKeyframes("keyframes.txt");
+    animate(10, "frames");
+  }
   SDL_RaiseWindow(window);
   time_t timeSec = time(NULL);
   int fps = 0;

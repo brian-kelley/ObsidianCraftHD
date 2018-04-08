@@ -129,7 +129,7 @@ float fpart(float in)
   return in - ipart(in);
 }
 
-void render(bool write)
+void render(bool write, string fname)
 {
   pthread_t threads[RAY_THREADS];
   //reset counter - as image is rendered,
@@ -160,8 +160,6 @@ void render(bool write)
   }
   if(write)
   {
-    ostringstream oss;
-    oss << "ochd_" << (time(NULL) % 1000) << ".png";
     //need to vertically flip the image for STBI
     for(int row = 0; row < RAY_H / 2; row++)
     {
@@ -172,7 +170,7 @@ void render(bool write)
         std::swap(top, bottom);
       }
     }
-    stbi_write_png(oss.str().c_str(), RAY_W, RAY_H, 4, frameBuf, 4 * RAY_W);
+    stbi_write_png(fname.c_str(), RAY_W, RAY_H, 4, frameBuf, 4 * RAY_W);
   }
 }
 

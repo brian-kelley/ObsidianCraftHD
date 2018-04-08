@@ -11,16 +11,18 @@ using std::string;
 
 struct Keyframe
 {
-  Keyframe() : pos(player), dir(look)
+  Keyframe() : pos(player), y(yaw), p(pitch)
   {}
   vec3 pos;
-  vec3 dir;
+  float y;  //yaw
+  float p;  //pitch
 };
 
 extern vector<Keyframe> keyframes;
 void captureKeyframe();
 void saveKeyframes(string fname);
 void loadKeyframes(string fname);
+void animate(float sec, string folder);
 
 #endif
 
