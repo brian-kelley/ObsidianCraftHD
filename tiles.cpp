@@ -106,16 +106,16 @@ static int texcoords[3][NUM_TILES][2] =
 float specularity[NUM_TILES] =
 {
   0,        //AIR
-  0.8,      //STONE
-  0.5,      //DIRT
-  0.8,      //COAL
-  0.8,      //IRON
-  0.8,      //GOLD
-  0.8,      //DIAMOND
+  0.6,      //STONE
+  0.3,      //DIRT
+  0.6,      //COAL
+  1.0,      //IRON
+  1.0,      //GOLD
+  1.0,      //DIAMOND
   0.5,      //LOG
   0.5,      //LEAF
-  0.8,      //WATER
-  0.9,      //SAND
+  1.0,      //WATER
+  0.5,      //SAND
   1.0,      //GLASS
   0.9,      //OBSIDIAN
   0.9,      //QUARTZ

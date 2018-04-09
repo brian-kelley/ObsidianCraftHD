@@ -113,6 +113,7 @@ void setViewQuat(glm::quat q)
 }
 
 void toggleFancy();
+extern double currentTime;
 
 void animate(float sec, string folder)
 {
@@ -155,6 +156,7 @@ void animate(float sec, string folder)
   for(int f = 0; f < timesteps; f++)
   {
     cout << "Rendering frame " << f+1 << " of " << timesteps << '\n';
+    currentTime = float(f) / 30;
     float t = float(f) / timesteps;
     //figure out which spline t is in
     int current;

@@ -38,7 +38,7 @@ const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
 const vec3 waterBlue(0.1, 0.2, 0.5);
 //color applied to water when reflect/refract from air
-const vec3 waterHue(0.2, 0.4, 0.6);
+const vec3 waterHue = vec3(0.2, 0.4, 0.6);
 const float waterClarity = 0.95;
 //sunlight direction
 //vec3 sunlight = normalize(vec3(0.5, -1, 0.1));
@@ -265,12 +265,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   vec3 color(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
-    if((origin.x <= 0 && direction.x <= 0) ||
-        (origin.x >= chunksX * 16 && direction.x >= 0) ||
-        (origin.y <= 0 && direction.y <= 0) ||
+    if(origin.x <= 0 ||
+        origin.x >= chunksX * 16 ||
+        origin.y <= 0 ||
         (origin.y >= chunksY * 16 && direction.y >= 0) ||
-        (origin.z <= 0 && direction.z <= 0) ||
-        (origin.z >= chunksZ * 16 && direction.z >= 0))
+        origin.z <= 0 ||
+        origin.z >= chunksZ * 16)
     {
       return processEscapedRay(origin, direction, color, bounces, exact);
     }
@@ -427,27 +427,32 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
 }
 
 vec3 scatter(vec3 direction, vec3 normal, Block material)
-{ //compute ideal reflection vector
+{
+  //compute ideal reflection vector
   vec3 s = normalize(glm::reflect(direction, normal));
   //compute the specular reflectino vector s
   //combine r and s based on material specularity
   float spec = specularity[material];
-  vec3 r = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
-  if(glm::dot(normal, r) < 0)
-    r = -r;
-  return normalize(s * spec + (1 - spec) * r);
+  //sample a Beckmann distribution to get 
+  vec3 r1 = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
+  vec3 r2 = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
+  if(glm::dot(s, r1) < 0)
+    r1 = -r1;
+  if(glm::dot(normal, r2) < 0)
+    r2 = -r2;
+  return normalize(s * spec + (1 - spec) * normalize(r1 + r2));
 }
 
 vec3 waterNormal(vec3 position)
 {
-  //increase this for more ripples, but 1 is probably most realistic
-  const int frequency = 1;
+  //higher freq = more ripples per distance
+  const float frequency = 0.5;
   const double timeScale = 1;
   //since the position of water fragments is perfectly flat,
   //amplitude needs to be very small
   const double k = 0.01;
   double scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  double x = fpart(position.x) * 2 * M_PI * frequency + scaledTime;
+  double x = fpart(position.x) * 2 * M_PI * (frequency * 1.5) + scaledTime;
   double z = fpart(position.z) * 2 * M_PI * frequency + scaledTime;
   return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
 }
@@ -468,9 +473,9 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
   {
     return waterBlue;
   }
-  if(pos.y < seaLevel && direction.y < 0)
+  if(pos.y <= seaLevel && direction.y <= 0)
   {
-    //ray goes through infinitely deep ocean, no light escapes
+    //ray goes through infinitely deep ocean: no light escapes
     return vec3(0, 0, 0);
   }
   float nwater = refractIndex[WATER];
@@ -484,8 +489,6 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
     float cosCriticalAngle = cosf(asinf(1 / nwater));
     if(cosTheta >= cosCriticalAngle)
     {
-      //always refract when going down in index of refraction
-      //don't apply any texel color - no brightness lost
       direction = normalize(glm::refract(direction, normal, nwater));
       color *= powf(waterClarity, glm::length(throughWater));
     }
@@ -518,15 +521,13 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
       return vec3(0, 0, 0);
     }
   }
-  //only need to compute a single interaction with water surface to
-  //determine ray's final behavior
-  //this can be surface reflection, refraction or internal reflection
   sunDot = glm::dot(direction, -sunlight);
   const float ambient = 1.0;
-  const float diffuse = 2.0;
+  const float diffuse = 0.0;
+  const float specular = 10.0;
   if(sunDot < 0)
     sunDot = 0;
-  return (ambient + diffuse * sunDot) * color;
+  return (ambient + diffuse * sunDot + specular * powf(sunDot, 10)) * color;
 }
 
 void toggleFancy()
@@ -534,10 +535,10 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 640;
-    RAY_H = 480;
+    RAY_W = 320;
+    RAY_H = 200;
     MAX_BOUNCES = 6;
-    RAYS_PER_PIXEL = 100;
+    RAYS_PER_PIXEL = 300;
     RAY_THREADS = 4;
   }
   else
