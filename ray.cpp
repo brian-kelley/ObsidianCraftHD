@@ -34,16 +34,17 @@ bool fancy = false;
 #endif
 
 const float ambient = 0.1;
-const vec3 skyBlue(120 / 255.0, 120 / 255.0, 210 / 255.0);
+const vec3 skyBlue(0.7, 0.7, 1);
 const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
-const vec3 waterBlue(0.2, 0.3, 0.7);
+const vec3 waterBlue(0.3, 0.5, 0.8);
 //color applied to water when reflect/refract from air
-const vec3 waterHue = vec3(0.4, 0.8, 0.9);
+const vec3 waterHue = vec3(0.6, 0.9, 1.0);
 const float waterClarity = 0.96;
 //sunlight direction
 vec3 sunlight = normalize(vec3(3.0, -1, 2.0));
 const float cosSunRadius = 0.998;
+const float brightnessAdjust = 4;
 
 ostream& operator<<(ostream& os, vec3 v)
 {
@@ -375,7 +376,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         vec3 halfway = glm::normalize(-sunlight - direction);
         specContrib = spec * powf(fmax(0, glm::dot(halfway, normal)), 40);
       }
-      color += 4 * (ambient + diffContrib + specContrib) * vec3(texel) * colorInfluence;
+      color += (ambient + diffContrib + specContrib) * vec3(texel) * colorInfluence;
       if(float(rand()) / RAND_MAX > (spec / (spec + diff)))
       {
         direction = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
@@ -510,17 +511,12 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
         skyColor = sunYellow;
       color += colorInfluence * powf(waterClarity, glm::length(throughWater)) * skyColor;
-      return color;
     }
-    else
-    {
-      //internal reflection, no extra light
-      return color;
-    }
+    //else: internal reflection, no extra light
   }
-  else if(pos.y > seaLevel && direction.y < 0)
+  else if(pos.y >= seaLevel && direction.y < 0)
   {
-    vec3 intersect = pos + direction * (pos.y / direction.y);
+    vec3 intersect = pos - direction * (pos.y / direction.y);
     vec3 normal = waterNormal(intersect);
     //smaller angle of incidence means more likely to refract (Fresnel)
     float cosTheta = fabsf(glm::dot(normal, direction));
@@ -530,18 +526,13 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     if(float(rand()) / RAND_MAX < reflectProb)
     {
       //reflect off surface; apply water color times ambient, diffuse, specular
-      direction = normalize(glm::reflect(direction, normal));
-      float diffContrib = kd[WATER] * fmax(0, glm::dot(direction, normal));
-      vec3 halfway = glm::normalize(-sunlight + direction);
+      //direction = normalize(glm::reflect(direction, normal));
+      float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
+      vec3 halfway = glm::normalize(-sunlight - direction);
       float specContrib = ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), 40);
-      color += colorInfluence * waterBlue * (ambient + diffContrib + specContrib);
-      return color;
+      color += (colorInfluence * waterBlue) * (ambient + diffContrib + specContrib);
     }
-    else
-    {
-      //enter deep water, no extra light
-      return color;
-    }
+    //else: enter deep water, no extra light
   }
   else
   {
@@ -551,7 +542,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     else
       color += colorInfluence * skyBlue;
   }
-  return color;
+  return color * brightnessAdjust;
 }
 
 bool visibleFromSun(vec3 pos, bool air)
