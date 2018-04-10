@@ -25,7 +25,7 @@ void render(bool write, string fname = "");
 vec3 trace(vec3 origin, vec3 direction, bool& exact);
 vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape);
 vec3 waterNormal(vec3 position);
-vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& exact);
+vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence, int bounces, bool& exact);
 //Is there a direct path from given position to the sun?
 //If pos is underwater, has to use monte carlo method to decide
 //Otherwise, trace direct ray and see if it hits anything

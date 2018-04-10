@@ -46,7 +46,7 @@ static int texcoords[3][NUM_TILES][2] =
 {
   //Top textures
   {
-    {16, 112},   //AIR (no texture)
+    {16, 112},//AIR (no texture)
     {16, 0},  //STONE
     {0, 0},   //GRASS
     {32, 32}, //COAL
@@ -74,12 +74,12 @@ static int texcoords[3][NUM_TILES][2] =
     {32, 48}, //DIAMOND
     {64, 16}, //LOG
     {64, 48}, //LEAF
-    {16, 112},   //WATER (no texture)
+    {16, 112},//WATER (no texture)
     {32, 16}, //SAND
     {16, 48}, //GLASS
     {80, 32}, //OBSIDIAN
     {32, 64}, //QUARTZ
-    {16, 16},  //BEDROCK
+    {16, 16}, //BEDROCK
     {0, 0}
   },
   //Bottom textures
@@ -106,16 +106,16 @@ static int texcoords[3][NUM_TILES][2] =
 float kd[NUM_TILES] =
 {
   0,        //AIR
-  0.6,      //STONE
+  0.8,      //STONE
   1.0,      //DIRT
-  0.6,      //COAL
-  0.6,      //IRON
-  0.6,      //GOLD
-  0.6,      //DIAMOND
+  0.8,      //COAL
+  0.8,      //IRON
+  0.8,      //GOLD
+  0.8,      //DIAMOND
   1.0,      //LOG
   1.0,      //LEAF
-  0.2,      //WATER
-  0.8,      //SAND
+  0.6,      //WATER
+  0.7,      //SAND
   0.0,      //GLASS
   0.2,      //OBSIDIAN
   0.2,      //QUARTZ
@@ -126,16 +126,16 @@ float kd[NUM_TILES] =
 float ks[NUM_TILES] =
 {
   0,        //AIR
-  0.4,      //STONE
+  0.2,      //STONE
   0.0,      //DIRT
-  0.4,      //COAL
-  0.4,      //IRON
-  0.4,      //GOLD
-  0.4,      //DIAMOND
+  0.2,      //COAL
+  0.2,      //IRON
+  0.2,      //GOLD
+  0.2,      //DIAMOND
   0.0,      //LOG
   0.0,      //LEAF
-  0.8,      //WATER
-  0.2,      //SAND
+  1.0,      //WATER
+  0.3,      //SAND
   1.0,      //GLASS
   0.8,      //OBSIDIAN
   0.8,      //QUARTZ
