@@ -6,7 +6,7 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 
 set(CMAKE_C_FLAGS "-std=gnu11 -Wall -O3 -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -ffast-math")
-set(CMAKE_CXX_FLAGS "-std=c++11 -Wc++11-extensions -O3 -Wall -Wshadow -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -Wno-extern-c-compat")
+set(CMAKE_CXX_FLAGS "-std=c++11 -Wc++11-extensions -O3 -Wall -march=native -mtune=native -mavx2 -ffast-math -fomit-frame-pointer -fassociative-math -Wno-extern-c-compat")
 
 #project (ObsidianCraftHD)
 

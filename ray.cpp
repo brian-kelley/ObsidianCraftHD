@@ -39,7 +39,7 @@ const vec3 sunYellow(1, 1, 0.8);
 const vec3 waterBlue(0.1, 0.2, 0.5);
 //color applied to water when reflect/refract from air
 const vec3 waterHue = vec3(0.2, 0.5, 0.8);
-const float waterClarity = 0.95;
+const float waterClarity = 0.96;
 //sunlight direction
 //vec3 sunlight = normalize(vec3(0.5, -1, 0.1));
 vec3 sunlight = normalize(vec3(3.0, -1, 2.0));
@@ -244,7 +244,6 @@ vec3 rayCubeIntersect(vec3 p, vec3 dir, vec3& norm, vec3 cube, float size)
   return rayCubeIntersect(p, normalize(dir + nudge), norm, cube, size);
 }
 
-/*
 //desaturate a color
 //k = 0: return shade of grey with same magnitude
 //k = 1: return color
@@ -253,7 +252,6 @@ static vec3 desaturate(vec3 color, float k)
   float mag = glm::length(color);
   return vec3(color.x * k + mag * (1-k), color.y * k + mag * (1-k), color.z * k + mag * (1-k));
 }
-*/
 
 vec3 trace(vec3 origin, vec3 direction, bool& exact)
 {
@@ -266,6 +264,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   vec3 colorInfluence(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
+    vec3 prevDir = direction;
     ivec3 blockIter;
     bool escape = false;
     vec3 normal;
@@ -297,9 +296,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     {
       //entering water from transparent material
       //apply water hue to all light from now on
-      colorInfluence.x *= waterHue.x;
-      colorInfluence.y *= waterHue.y;
-      colorInfluence.z *= waterHue.z;
+      colorInfluence *= waterHue;
       if(normal.y < 0)
         normal = -waterNormal(intersect);
       else if(normal.y > 0)
@@ -319,33 +316,35 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       texel = vec4(1, 1, 1, 0);
     }
     bool refract = false;
+    //note: if reflecting off opaque material, these won't be used
+    float nPrev = refractIndex[prevMaterial];
+    float nNext = refractIndex[nextMaterial];
+    float r0 = (nPrev - nNext) / (nPrev + nNext);
+    r0 *= r0;
+    //compute the Fresnel term using Schlick's approximatoin
+    //this is used to decide refraction vs. reflection,
+    //and also to determine reflectivity during reflection
+    float cosTheta = fabsf(glm::dot(normal, direction));
+    float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
     if(texel.w < 0.5)
     {
       //from one transparent medium to another
-      float nPrev = refractIndex[prevMaterial];
-      float nNext = refractIndex[nextMaterial];
-      float cosTheta = fabsf(glm::dot(normal, direction));
       if(nPrev <= nNext)
       {
-        float r0 = (nPrev - nNext) / (nPrev + nNext);
-        r0 *= r0;
-        float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
-        if(float(rand()) / RAND_MAX > reflectProb)
+        if(float(rand()) / RAND_MAX > fresnel)
           refract = true;
       }
       else
       {
         float cosCriticalAngle = cosf(asinf(nNext / nPrev));
-        if(cosTheta < cosCriticalAngle + eps)
+        if(cosTheta >= cosCriticalAngle)
           refract = true;
       }
     }
     if(refract)
     {
-      direction = glm::refract(direction, normal, nPrev / nNext);
-      colorInfluence.x *= texel.x;
-      colorInfluence.y *= texel.y;
-      colorInfluence.z *= texel.z;
+      direction = normalize(glm::refract(direction, normal, nPrev / nNext));
+      colorInfluence *= vec3(texel);
     }
     else
     {
@@ -354,38 +353,55 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       {
         //passed through some water, so reduce ray's brightness
         float waterDarken = powf(waterClarity, glm::length(origin - intersect));
-        color *= waterDarken;
         colorInfluence *= waterDarken;
       }
-      direction = glm::reflect(direction, normal);
+      direction = normalize(glm::reflect(direction, normal));
       //decide whether to add specular or diffuse lighting from sun,
       //based on ks and kd for nextMaterial
       float spec = ks[nextMaterial];
       float diff = kd[nextMaterial];
-      bool shadowed = visibleFromSun(intersect);
+      //bool shadowed = visibleFromSun(intersect, nPrev == 1);
+      bool shadowed = false;
       float k = 0;
+      vec3 prevInfluence = colorInfluence;
+      float reflectivity = spec * (1 - fresnel);
+      vec3 bounceColor;
       if(float(rand()) / RAND_MAX > (spec / (spec + diff)))
       {
         //diffuse
         if(!shadowed)
         {
-          k = diff * glm::dot(normal, -sunlight);
+          k = glm::dot(normal, -sunlight);
         }
+        direction = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
+        if(glm::dot(direction, normal) < 0)
+          direction = -direction;
+        //update color influence: very little light from subsequent bounces
+        //will reflect off diffuse material, but more color will be preserved
+        bounceColor = reflectivity * desaturate(vec3(texel), 0.4);
       }
       else
       {
         //specular
         if(!shadowed)
         {
-          vec3 halfway = glm::normalize(-sunlight - dir);
-          k = spec * powf(std::max(0, glm::dot(halfway, normal)), 40);
+          vec3 halfway = glm::normalize(-sunlight - direction);
+          k = powf(fmax(0, glm::dot(halfway, normal)), 40);
         }
+        direction = normalize(glm::reflect(direction, normal));
+        //Specular reflection barely affects ray color at all
+        bounceColor = reflectivity * desaturate(vec3(texel), 0.05);
       }
-      color += colorInfluence * k;
+      color += k * vec3(texel) * colorInfluence;
+      colorInfluence *= bounceColor;
     }
     //continue from intersection
     origin = intersect;
     bounces++;
+    if(isnan(glm::length(direction)))
+    {
+      return vec3(0, 0, 0);
+    }
   }
   //light bounced too many times without reaching light source,
   //so no light contributed from this ray
@@ -457,13 +473,14 @@ vec3 waterNormal(vec3 position)
   //amplitude needs to be very small
   const double k = 0.01;
   double scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  double x = fpart(position.x) * 2 * M_PI * (frequency * 1.5) + scaledTime;
+  double x = fpart(position.x) * 2 * M_PI * (frequency * 2) + scaledTime;
   double z = fpart(position.z) * 2 * M_PI * frequency + scaledTime;
   return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
 }
 
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& exact)
 {
+  return color;
   float sunDot = glm::dot(direction, -sunlight);
   //if nothing has been hit yet, return sky or sun color
   if(bounces == 0 && direction.y > 0)
@@ -481,7 +498,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
   if(pos.y <= seaLevel && direction.y <= 0)
   {
     //ray goes through infinitely deep ocean: no light escapes
-    return vec3(0, 0, 0);
+    return color;
   }
   float nwater = refractIndex[WATER];
   if(pos.y < seaLevel && direction.y > 0)
@@ -526,39 +543,41 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
       return vec3(0, 0, 0);
     }
   }
-  sunDot = glm::dot(direction, -sunlight);
-  const float ambient = 1.0;
-  const float diffuse = 0.0;
-  const float specular = 10.0;
-  if(sunDot < 0)
-    sunDot = 0;
-  return (ambient + diffuse * sunDot + specular * powf(sunDot, 10)) * color;
+  return color;
 }
 
 bool visibleFromSun(vec3 pos, bool air)
 {
-  vec3 dir = -sunlight;
+  const float eps = 1e-8;
   //if ray is not in air,
   //  use monte carlo (if any one of several rays escapes
   //  near the sun, return true
   //  This allows the ray to pass through all transparent materials, with ideal refraction
   //otherwise just trace directly towards sun, and
   //  check if center of sun is directly visible
+  air = true;
   if(air)
   {
+    //cout << "Checking if " << pos << " has clear line of sight to sun: ";
     ivec3 block;
     vec3 normal;
     Block prevMat, nextMat;
     bool escape;
     //does a ray pointed at the sun escape?
     collideRay(pos, -sunlight, block, normal, prevMat, nextMat, escape);
+    /*
+    if(escape)
+      cout << "YES\n";
+    else
+      cout << "NO\n";
+      */
     return escape;
   }
   else
   {
     const int samples = 64;
     const int maxBounces = 4;
-    float threshold = cosSunRadius;
+    float threshold = 0.99;
     vec3 normal;
     ivec3 block;  //don't care about this
     Block prevMat, nextMat;
@@ -575,7 +594,7 @@ bool visibleFromSun(vec3 pos, bool air)
       while(bounces < maxBounces)
       {
         vec3 intersect = collideRay(pos, dir, block, normal, prevMat, nextMat, escape);
-        if(escape && glm::dot(dir, -sunlight) >= cosSunRadius)
+        if(escape && glm::dot(dir, -sunlight) >= threshold)
         {
           //Found a ray that escaped to sun
           return true;

@@ -29,7 +29,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
 //Is there a direct path from given position to the sun?
 //If pos is underwater, has to use monte carlo method to decide
 //Otherwise, trace direct ray and see if it hits anything
-bool visibleFromSun(vec3 pos);
+bool visibleFromSun(vec3 pos, bool air);
 void toggleFancy();
 
 std::ostream& operator<<(std::ostream& os, vec3 v);
