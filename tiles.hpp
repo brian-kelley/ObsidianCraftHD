@@ -50,6 +50,7 @@ void initAtlas();
 
 //Get the color of fragment at world position x, y, z
 vec4 sample(Block block, Side side, float x, float y, float z);
+bool isTransparent(Block block);
 
 #endif
 

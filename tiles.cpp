@@ -206,3 +206,8 @@ vec4 sample(Block block, Side side, float x, float y, float z)
   return color;
 }
 
+bool isTransparent(Block block)
+{
+  return block == AIR || block == LEAF || block == WATER || block == GLASS;
+}
+

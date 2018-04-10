@@ -38,7 +38,7 @@ const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
 const vec3 waterBlue(0.1, 0.2, 0.5);
 //color applied to water when reflect/refract from air
-const vec3 waterHue = vec3(0.2, 0.4, 0.6);
+const vec3 waterHue = vec3(0.2, 0.5, 0.8);
 const float waterClarity = 0.95;
 //sunlight direction
 //vec3 sunlight = normalize(vec3(0.5, -1, 0.1));
@@ -262,7 +262,8 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   //iterate through blocks, finding the faces that player is looking through
   int bounces = 0;
   //color components take on the product of texture components
-  vec3 color(1, 1, 1);
+  vec3 color(0, 0, 0);
+  vec3 colorInfluence(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
     ivec3 blockIter;
@@ -292,17 +293,21 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     }
     //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
     //choose whether to reflect or refract
-    if(prevMaterial == AIR && nextMaterial == WATER)
+    if(isTransparent(prevMaterial) && nextMaterial == WATER)
     {
-      //light, faint blue-green
-      texel = vec4(waterHue, 0);
+      //entering water from transparent material
+      //apply water hue to all light from now on
+      colorInfluence.x *= waterHue.x;
+      colorInfluence.y *= waterHue.y;
+      colorInfluence.z *= waterHue.z;
       if(normal.y < 0)
         normal = -waterNormal(intersect);
       else if(normal.y > 0)
         normal = waterNormal(intersect);
     }
-    else if(prevMaterial == AIR && nextMaterial == WATER)
+    else if(isTransparent(nextMaterial) && prevMaterial == WATER)
     {
+      //apply a blue color to ray
       if(normal.y < 0)
         normal = -waterNormal(intersect);
       else if(normal.y > 0)
@@ -310,75 +315,77 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     }
     else if(texel.w < 0.5)
     {
+      //set color to white so that multiplying by components doesn't affect ray
       texel = vec4(1, 1, 1, 0);
     }
-    bool transparent = texel.w < 0.5;
-    //decide what behavior this ray should take
+    bool refract = false;
+    if(texel.w < 0.5)
     {
-      //passing from one transparent medium to another
+      //from one transparent medium to another
       float nPrev = refractIndex[prevMaterial];
       float nNext = refractIndex[nextMaterial];
-      //smaller angle of incidence means more likely to refract (Fresnel)
-      float cosTheta = fabsf(glm::dot(-normal, direction));
-      float r0 = (nPrev - nNext) / (nPrev + nNext);
-      r0 *= r0;
-      float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
-      if(nPrev == nNext)
+      float cosTheta = fabsf(glm::dot(normal, direction));
+      if(nPrev <= nNext)
       {
-        if(prevMaterial == WATER)
-        {
-          //first argument is how much light passes through 1m of water
-          color *= powf(waterClarity, glm::length(origin - intersect));
-        }
-        //refracted means don't process reflection and scattering below
-        refracted = true;
+        float r0 = (nPrev - nNext) / (nPrev + nNext);
+        r0 *= r0;
+        float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+        if(float(rand()) / RAND_MAX > reflectProb)
+          refract = true;
       }
-      else if(nPrev > nNext)
+      else
       {
-        //check for total internal reflection here
         float cosCriticalAngle = cosf(asinf(nNext / nPrev));
-        if(cosTheta >= cosCriticalAngle + eps)
-        {
-          //always refract when going down in index of refraction
-          direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-          color.x *= texel.x;
-          color.y *= texel.y;
-          color.z *= texel.z;
-          refracted = true;
-          bounces++;
-        }
-        //else: reflect (below)
-      }
-      else if(float(rand()) / RAND_MAX > reflectProb)
-      {
-        direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-        //apply color to ray
-        color.x *= texel.x;
-        color.y *= texel.y;
-        color.z *= texel.z;
-        bounces++;
-        refracted = true;
+        if(cosTheta < cosCriticalAngle + eps)
+          refract = true;
       }
     }
-    if(!refracted)
+    if(refract)
     {
-      //reflect and blend sampled color and ray color,
-      //but de-saturate after each bounce
-      float brightness = glm::length(vec3(texel));
-      if(bounces == 0)
-      {
-        color = vec3(texel);
-      }
-      //how much color a ray picks up from reflecting off a surface
-      float colorBlend = 0.1;
-      color *= (0.5f + 0.5f * brightness) * (1 - colorBlend);
-      color.x += colorBlend * texel.x;
-      color.y += colorBlend * texel.y;
-      color.z += colorBlend * texel.z;
-      direction = scatter(direction, normal, nextMaterial);
-      bounces++;
+      direction = glm::refract(direction, normal, nPrev / nNext);
+      colorInfluence.x *= texel.x;
+      colorInfluence.y *= texel.y;
+      colorInfluence.z *= texel.z;
     }
+    else
+    {
+      //reflect
+      if(prevMaterial == WATER)
+      {
+        //passed through some water, so reduce ray's brightness
+        float waterDarken = powf(waterClarity, glm::length(origin - intersect));
+        color *= waterDarken;
+        colorInfluence *= waterDarken;
+      }
+      direction = glm::reflect(direction, normal);
+      //decide whether to add specular or diffuse lighting from sun,
+      //based on ks and kd for nextMaterial
+      float spec = ks[nextMaterial];
+      float diff = kd[nextMaterial];
+      bool shadowed = visibleFromSun(intersect);
+      float k = 0;
+      if(float(rand()) / RAND_MAX > (spec / (spec + diff)))
+      {
+        //diffuse
+        if(!shadowed)
+        {
+          k = diff * glm::dot(normal, -sunlight);
+        }
+      }
+      else
+      {
+        //specular
+        if(!shadowed)
+        {
+          vec3 halfway = glm::normalize(-sunlight - dir);
+          k = spec * powf(std::max(0, glm::dot(halfway, normal)), 40);
+        }
+      }
+      color += colorInfluence * k;
+    }
+    //continue from intersection
     origin = intersect;
+    bounces++;
   }
   //light bounced too many times without reaching light source,
   //so no light contributed from this ray
@@ -549,16 +556,21 @@ bool visibleFromSun(vec3 pos, bool air)
   }
   else
   {
-    const int samples = 16;
+    const int samples = 64;
     const int maxBounces = 4;
     float threshold = cosSunRadius;
-    vec3 dir = -sunlight;
     vec3 normal;
     ivec3 block;  //don't care about this
     Block prevMat, nextMat;
     bool escape = false;
     for(int i = 0; i < samples; i++)
     {
+      //Choose a random direction to try which is in hemisphere of sun
+      vec3 dir(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX);
+      if(glm::dot(dir, -sunlight) < 0)
+      {
+        dir = -dir;
+      }
       int bounces = 0;
       while(bounces < maxBounces)
       {
