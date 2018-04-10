@@ -41,7 +41,6 @@ const vec3 waterBlue(0.1, 0.2, 0.5);
 const vec3 waterHue = vec3(0.2, 0.5, 0.8);
 const float waterClarity = 0.96;
 //sunlight direction
-//vec3 sunlight = normalize(vec3(0.5, -1, 0.1));
 vec3 sunlight = normalize(vec3(3.0, -1, 2.0));
 const float cosSunRadius = 0.996;
 
@@ -257,6 +256,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
 {
   exact = false;
   float eps = 1e-8;
+  const float ambient = 0.1;
   //iterate through blocks, finding the faces that player is looking through
   int bounces = 0;
   //color components take on the product of texture components
@@ -264,7 +264,6 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   vec3 colorInfluence(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
-    vec3 prevDir = direction;
     ivec3 blockIter;
     bool escape = false;
     vec3 normal;
@@ -344,6 +343,8 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     if(refract)
     {
       direction = normalize(glm::refract(direction, normal, nPrev / nNext));
+      //future light contributions affected by transparent material color,
+      //but not past light
       colorInfluence *= vec3(texel);
     }
     else
@@ -355,15 +356,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         float waterDarken = powf(waterClarity, glm::length(origin - intersect));
         colorInfluence *= waterDarken;
       }
-      direction = normalize(glm::reflect(direction, normal));
       //decide whether to add specular or diffuse lighting from sun,
       //based on ks and kd for nextMaterial
       float spec = ks[nextMaterial];
       float diff = kd[nextMaterial];
-      //bool shadowed = visibleFromSun(intersect, nPrev == 1);
-      bool shadowed = false;
+      bool shadowed = !visibleFromSun(intersect, nPrev == 1);
       float k = 0;
-      vec3 prevInfluence = colorInfluence;
       float reflectivity = spec * (1 - fresnel);
       vec3 bounceColor;
       if(float(rand()) / RAND_MAX > (spec / (spec + diff)))
@@ -371,13 +369,13 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         //diffuse
         if(!shadowed)
         {
-          k = glm::dot(normal, -sunlight);
+          k = diff * fmax(0, glm::dot(normal, -sunlight));
         }
         direction = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
         if(glm::dot(direction, normal) < 0)
           direction = -direction;
         //update color influence: very little light from subsequent bounces
-        //will reflect off diffuse material, but more color will be preserved
+        //will reflect off diffuse material and have significant color bleed
         bounceColor = reflectivity * desaturate(vec3(texel), 0.4);
       }
       else
@@ -386,22 +384,20 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         if(!shadowed)
         {
           vec3 halfway = glm::normalize(-sunlight - direction);
-          k = powf(fmax(0, glm::dot(halfway, normal)), 40);
+          k = spec * powf(fmax(0, glm::dot(halfway, normal)), 40);
         }
         direction = normalize(glm::reflect(direction, normal));
         //Specular reflection barely affects ray color at all
         bounceColor = reflectivity * desaturate(vec3(texel), 0.05);
       }
-      color += k * vec3(texel) * colorInfluence;
-      colorInfluence *= bounceColor;
+      return 4.0f * (k + ambient) * vec3(texel);
+      //color += 4.0f * (k + ambient) * vec3(texel) * colorInfluence;
+      //colorInfluence *= bounceColor;
     }
     //continue from intersection
     origin = intersect;
     bounces++;
-    if(isnan(glm::length(direction)))
-    {
-      return vec3(0, 0, 0);
-    }
+    assert(!isnan(glm::length(direction)));
   }
   //light bounced too many times without reaching light source,
   //so no light contributed from this ray
@@ -418,17 +414,9 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
     blockIter.y -= 1;
   if(fpart(origin.z) < eps && direction.z < 0)
     blockIter.z -= 1;
-  prevMat = getBlock(blockIter.x, blockIter.y, blockIter.z);
   while(true)
   {
-    if(blockIter.x < 0 || blockIter.y < 0 || blockIter.z < 0 ||
-        blockIter.x >= chunksX * 16 || blockIter.y >= chunksY * 16 || blockIter.z >= chunksZ * 16)
-    {
-      escape = true;
-      block = blockIter;
-      return origin;
-    }
-    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
+    prevMat = getBlock(blockIter.x, blockIter.y, blockIter.z);
     //trace ray through space until a different material is encountered
     int cx = ipart(blockIter.x / 16.0f);
     int cy = ipart(blockIter.y / 16.0f);
@@ -451,11 +439,18 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
       nextBlock.y -= 1;
     if(fpart(intersect.z) < eps && direction.z < 0)
       nextBlock.z -= 1;
-    Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
-    if(prevMaterial != nextMaterial)
+    nextMat = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
+    if(nextBlock.x < 0 || nextBlock.y < 0 || nextBlock.z < 0 ||
+        nextBlock.x >= chunksX * 16 || nextBlock.y >= chunksY * 16 || nextBlock.z >= chunksZ * 16)
     {
+      escape = true;
       block = nextBlock;
-      nextMat = nextMaterial;
+      return intersect;
+    }
+    if(prevMat != nextMat)
+    {
+      escape = false;
+      block = nextBlock;
       return intersect;
     }
     origin = intersect;
@@ -480,7 +475,6 @@ vec3 waterNormal(vec3 position)
 
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& exact)
 {
-  return color;
   float sunDot = glm::dot(direction, -sunlight);
   //if nothing has been hit yet, return sky or sun color
   if(bounces == 0 && direction.y > 0)
@@ -495,6 +489,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
   {
     return waterBlue;
   }
+  return color;
   if(pos.y <= seaLevel && direction.y <= 0)
   {
     //ray goes through infinitely deep ocean: no light escapes
@@ -562,16 +557,16 @@ bool visibleFromSun(vec3 pos, bool air)
     ivec3 block;
     vec3 normal;
     Block prevMat, nextMat;
-    bool escape;
+    bool escape = false;
     //does a ray pointed at the sun escape?
-    collideRay(pos, -sunlight, block, normal, prevMat, nextMat, escape);
-    /*
-    if(escape)
-      cout << "YES\n";
-    else
-      cout << "NO\n";
-      */
-    return escape;
+    do
+    {
+      pos = collideRay(pos, -sunlight, block, normal, prevMat, nextMat, escape);
+      if(escape)
+        return true;
+    }
+    while(isTransparent(nextMat));
+    return false;
   }
   else
   {
@@ -666,7 +661,7 @@ void toggleFancy()
   {
     RAY_W = 200;
     RAY_H = 150;
-    MAX_BOUNCES = 1;
+    MAX_BOUNCES = 2;
     RAYS_PER_PIXEL = 1;
     RAY_THREADS = 4;
   }

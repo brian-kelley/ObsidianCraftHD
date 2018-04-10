@@ -114,7 +114,7 @@ float kd[NUM_TILES] =
   0.6,      //DIAMOND
   1.0,      //LOG
   1.0,      //LEAF
-  0.0,      //WATER
+  0.2,      //WATER
   0.8,      //SAND
   0.0,      //GLASS
   0.2,      //OBSIDIAN
@@ -134,7 +134,7 @@ float ks[NUM_TILES] =
   0.4,      //DIAMOND
   0.0,      //LOG
   0.0,      //LEAF
-  1.0,      //WATER
+  0.8,      //WATER
   0.2,      //SAND
   1.0,      //GLASS
   0.8,      //OBSIDIAN
