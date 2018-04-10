@@ -21,11 +21,15 @@ extern byte* frameBuf;
 void initRay();
 //if write, produce a PNG file of the framebuffer after rendering
 void render(bool write, string fname = "");
-//get light contribution from a single ray
+//get color (light contribution) from a single ray
 vec3 trace(vec3 origin, vec3 direction, bool& exact);
-vec3 scatter(vec3 direction, vec3 normal, Block material);
+vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape);
 vec3 waterNormal(vec3 position);
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& exact);
+//Is there a direct path from given position to the sun?
+//If pos is underwater, has to use monte carlo method to decide
+//Otherwise, trace direct ray and see if it hits anything
+bool visibleFromSun(vec3 pos);
 void toggleFancy();
 
 std::ostream& operator<<(std::ostream& os, vec3 v);

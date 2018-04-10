@@ -103,22 +103,42 @@ static int texcoords[3][NUM_TILES][2] =
   }
 };
 
-float specularity[NUM_TILES] =
+float kd[NUM_TILES] =
 {
   0,        //AIR
   0.6,      //STONE
-  0.3,      //DIRT
+  1.0,      //DIRT
   0.6,      //COAL
-  1.0,      //IRON
-  1.0,      //GOLD
-  1.0,      //DIAMOND
-  0.5,      //LOG
-  0.5,      //LEAF
+  0.6,      //IRON
+  0.6,      //GOLD
+  0.6,      //DIAMOND
+  1.0,      //LOG
+  1.0,      //LEAF
+  0.0,      //WATER
+  0.8,      //SAND
+  0.0,      //GLASS
+  0.2,      //OBSIDIAN
+  0.2,      //QUARTZ
+  0.0,      //BEDROCK
+  0.0       //unused
+};
+
+float ks[NUM_TILES] =
+{
+  0,        //AIR
+  0.4,      //STONE
+  0.0,      //DIRT
+  0.4,      //COAL
+  0.4,      //IRON
+  0.4,      //GOLD
+  0.4,      //DIAMOND
+  0.0,      //LOG
+  0.0,      //LEAF
   1.0,      //WATER
-  0.5,      //SAND
+  0.2,      //SAND
   1.0,      //GLASS
-  0.9,      //OBSIDIAN
-  0.9,      //QUARTZ
+  0.8,      //OBSIDIAN
+  0.8,      //QUARTZ
   0.0,      //BEDROCK
   0.0       //unused
 };

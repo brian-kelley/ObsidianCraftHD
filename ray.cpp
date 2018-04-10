@@ -265,61 +265,23 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   vec3 color(1, 1, 1);
   while(bounces < MAX_BOUNCES)
   {
-    if(origin.x <= 0 ||
-        origin.x >= chunksX * 16 ||
-        origin.y <= 0 ||
-        (origin.y >= chunksY * 16 && direction.y >= 0) ||
-        origin.z <= 0 ||
-        origin.z >= chunksZ * 16)
-    {
-      return processEscapedRay(origin, direction, color, bounces, exact);
-    }
-    //set blockIter to the block that ray is entering
-    vec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
-    if(fpart(origin.x) < eps && direction.x < 0)
-      blockIter.x -= 1;
-    if(fpart(origin.y) < eps && direction.y < 0)
-      blockIter.y -= 1;
-    if(fpart(origin.z) < eps && direction.z < 0)
-      blockIter.z -= 1;
-    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
-    //get chunk that ray is entering,
-    //and check if chunk is empty
-    int cx = ipart(blockIter.x / 16);
-    int cy = ipart(blockIter.y / 16);
-    int cz = ipart(blockIter.z / 16);
-    bool chunkInBounds = cx >= 0 && cy >= 0 && cz >= 0 &&
-      cx < chunksX && cy < chunksY && cz < chunksZ;
-    bool emptyChunk = !chunkInBounds || (chunkInBounds && chunks[cx][cy][cz].numFilled == 0);
-    //the origin (corner) of chunk that ray is in (or about to enter, if on boundary)
-    vec3 chunkOrigin(16 * cx, 16 * cy, 16 * cz);
-    //point of intersection with next cube face (block or chunk)
-    vec3 intersect;
-    //normal at point of intersection
+    ivec3 blockIter;
+    bool escape = false;
     vec3 normal;
-    if(emptyChunk)
-      intersect = rayCubeIntersect(origin, direction, normal, chunkOrigin, 16);
-    else
-      intersect = rayCubeIntersect(origin, direction, normal, blockIter, 1);
-    vec3 nextBlock(ipart(intersect.x + eps), ipart(intersect.y + eps), ipart(intersect.z + eps));
-    if(fpart(intersect.x) < eps && direction.x < 0)
-      nextBlock.x -= 1;
-    if(fpart(intersect.y) < eps && direction.y < 0)
-      nextBlock.y -= 1;
-    if(fpart(intersect.z) < eps && direction.z < 0)
-      nextBlock.z -= 1;
-    Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
-    //hit a block: sample texture at point of intersection
-    vec4 texel(1, 1, 1, 0);
-    if(prevMaterial != nextMaterial || prevMaterial == LEAF)
+    Block prevMaterial, nextMaterial;
+    vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
+    if(escape)
     {
-      if(normal.y > 0)
-        texel = sample(nextMaterial, TOP, intersect.x, intersect.y, intersect.z);
-      else if(normal.y < 0)
-        texel = sample(nextMaterial, BOTTOM, intersect.x, intersect.y, intersect.z);
-      else
-        texel = sample(nextMaterial, SIDE, intersect.x, intersect.y, intersect.z);
+      return processEscapedRay(intersect, direction, color, bounces, exact);
     }
+    //hit a block: sample texture at point of intersection
+    vec4 texel;
+    if(normal.y > 0)
+      texel = sample(nextMaterial, TOP, intersect.x, intersect.y, intersect.z);
+    else if(normal.y < 0)
+      texel = sample(nextMaterial, BOTTOM, intersect.x, intersect.y, intersect.z);
+    else
+      texel = sample(nextMaterial, SIDE, intersect.x, intersect.y, intersect.z);
     if(MAX_BOUNCES == 1)
     {
       exact = true;
@@ -328,96 +290,93 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       if(texel.w > 0.5)
         return vec3(texel);
     }
-    else
+    //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
+    //choose whether to reflect or refract
+    if(prevMaterial == AIR && nextMaterial == WATER)
     {
-      //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
-      //choose whether to reflect or refract
-      if(prevMaterial == AIR && nextMaterial == WATER)
+      //light, faint blue-green
+      texel = vec4(waterHue, 0);
+      if(normal.y < 0)
+        normal = -waterNormal(intersect);
+      else if(normal.y > 0)
+        normal = waterNormal(intersect);
+    }
+    else if(prevMaterial == AIR && nextMaterial == WATER)
+    {
+      if(normal.y < 0)
+        normal = -waterNormal(intersect);
+      else if(normal.y > 0)
+        normal = waterNormal(intersect);
+    }
+    else if(texel.w < 0.5)
+    {
+      texel = vec4(1, 1, 1, 0);
+    }
+    bool transparent = texel.w < 0.5;
+    //decide what behavior this ray should take
+    {
+      //passing from one transparent medium to another
+      float nPrev = refractIndex[prevMaterial];
+      float nNext = refractIndex[nextMaterial];
+      //smaller angle of incidence means more likely to refract (Fresnel)
+      float cosTheta = fabsf(glm::dot(-normal, direction));
+      float r0 = (nPrev - nNext) / (nPrev + nNext);
+      r0 *= r0;
+      float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+      if(nPrev == nNext)
       {
-        //light, faint blue-green
-        texel = vec4(waterHue, 0);
-        if(normal.y < 0)
-          normal = -waterNormal(intersect);
-        else if(normal.y > 0)
-          normal = waterNormal(intersect);
-      }
-      else if(prevMaterial == AIR && nextMaterial == WATER)
-      {
-        if(normal.y < 0)
-          normal = -waterNormal(intersect);
-        else if(normal.y > 0)
-          normal = waterNormal(intersect);
-      }
-      else if(texel.w < 0.5)
-      {
-        texel = vec4(1, 1, 1, 0);
-      }
-      bool refracted = false;
-      if(texel.w == 0)
-      {
-        //passing from one transparent medium to another
-        float nPrev = refractIndex[prevMaterial];
-        float nNext = refractIndex[nextMaterial];
-        //smaller angle of incidence means more likely to refract (Fresnel)
-        float cosTheta = fabsf(glm::dot(-normal, direction));
-        float r0 = (nPrev - nNext) / (nPrev + nNext);
-        r0 *= r0;
-        float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
-        if(nPrev == nNext)
+        if(prevMaterial == WATER)
         {
-          if(prevMaterial == WATER)
-          {
-            //first argument is how much light passes through 1m of water
-            color *= powf(waterClarity, glm::length(origin - intersect));
-          }
-          //refracted means don't process reflection and scattering below
-          refracted = true;
+          //first argument is how much light passes through 1m of water
+          color *= powf(waterClarity, glm::length(origin - intersect));
         }
-        else if(nPrev > nNext)
+        //refracted means don't process reflection and scattering below
+        refracted = true;
+      }
+      else if(nPrev > nNext)
+      {
+        //check for total internal reflection here
+        float cosCriticalAngle = cosf(asinf(nNext / nPrev));
+        if(cosTheta >= cosCriticalAngle + eps)
         {
-          //check for total internal reflection here
-          float cosCriticalAngle = cosf(asinf(nNext / nPrev));
-          if(cosTheta >= cosCriticalAngle + eps)
-          {
-            //always refract when going down in index of refraction
-            direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-            color.x *= texel.x;
-            color.y *= texel.y;
-            color.z *= texel.z;
-            refracted = true;
-            bounces++;
-          }
-          //else: reflect (below)
-        }
-        else if(float(rand()) / RAND_MAX > reflectProb)
-        {
+          //always refract when going down in index of refraction
           direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-          //apply color to ray
           color.x *= texel.x;
           color.y *= texel.y;
           color.z *= texel.z;
-          bounces++;
           refracted = true;
+          bounces++;
         }
+        //else: reflect (below)
       }
-      if(!refracted)
+      else if(float(rand()) / RAND_MAX > reflectProb)
       {
-        //reflect and blend sampled color and ray color,
-        //but de-saturate after each bounce
-        float brightness = glm::length(vec3(texel));
-        if(bounces == 0)
-        {
-          color = vec3(texel);
-        }
-        //how much color a ray picks up from reflecting off a surface
-        float colorBlend = 0.1;
-        color *= (0.5f + 0.5f * brightness) * (1 - colorBlend);
-        color.x += colorBlend * texel.x;
-        color.y += colorBlend * texel.y;
-        color.z += colorBlend * texel.z;
-        direction = scatter(direction, normal, nextMaterial);
+        direction = normalize(glm::refract(direction, normal, nPrev / nNext));
+        //apply color to ray
+        color.x *= texel.x;
+        color.y *= texel.y;
+        color.z *= texel.z;
         bounces++;
+        refracted = true;
       }
+    }
+    if(!refracted)
+    {
+      //reflect and blend sampled color and ray color,
+      //but de-saturate after each bounce
+      float brightness = glm::length(vec3(texel));
+      if(bounces == 0)
+      {
+        color = vec3(texel);
+      }
+      //how much color a ray picks up from reflecting off a surface
+      float colorBlend = 0.1;
+      color *= (0.5f + 0.5f * brightness) * (1 - colorBlend);
+      color.x += colorBlend * texel.x;
+      color.y += colorBlend * texel.y;
+      color.z += colorBlend * texel.z;
+      direction = scatter(direction, normal, nextMaterial);
+      bounces++;
     }
     origin = intersect;
   }
@@ -426,27 +385,66 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   return vec3(0, 0, 0);
 }
 
-vec3 scatter(vec3 direction, vec3 normal, Block material)
+vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape)
 {
-  //compute ideal reflection vector
-  vec3 s = normalize(glm::reflect(direction, normal));
-  //compute the specular reflectino vector s
-  //combine r and s based on material specularity
-  float spec = specularity[material];
-  //sample a Beckmann distribution to get 
-  vec3 r1 = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
-  vec3 r2 = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
-  if(glm::dot(s, r1) < 0)
-    r1 = -r1;
-  if(glm::dot(normal, r2) < 0)
-    r2 = -r2;
-  return normalize(s * spec + (1 - spec) * normalize(r1 + r2));
+  const float eps = 1e-8;
+  ivec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
+  if(fpart(origin.x) < eps && direction.x < 0)
+    blockIter.x -= 1;
+  if(fpart(origin.y) < eps && direction.y < 0)
+    blockIter.y -= 1;
+  if(fpart(origin.z) < eps && direction.z < 0)
+    blockIter.z -= 1;
+  prevMat = getBlock(blockIter.x, blockIter.y, blockIter.z);
+  while(true)
+  {
+    if(blockIter.x < 0 || blockIter.y < 0 || blockIter.z < 0 ||
+        blockIter.x >= chunksX * 16 || blockIter.y >= chunksY * 16 || blockIter.z >= chunksZ * 16)
+    {
+      escape = true;
+      block = blockIter;
+      return origin;
+    }
+    Block prevMaterial = getBlock(blockIter.x, blockIter.y, blockIter.z);
+    //trace ray through space until a different material is encountered
+    int cx = ipart(blockIter.x / 16.0f);
+    int cy = ipart(blockIter.y / 16.0f);
+    int cz = ipart(blockIter.z / 16.0f);
+    bool chunkInBounds = cx >= 0 && cy >= 0 && cz >= 0 &&
+      cx < chunksX && cy < chunksY && cz < chunksZ;
+    bool emptyChunk = !chunkInBounds || (chunkInBounds && chunks[cx][cy][cz].numFilled == 0);
+    //the origin (corner) of chunk that ray is in (or about to enter, if on boundary)
+    vec3 chunkOrigin(16 * cx, 16 * cy, 16 * cz);
+    //point of intersection with next cube face (block or chunk)
+    vec3 intersect;
+    if(emptyChunk)
+      intersect = rayCubeIntersect(origin, direction, normal, chunkOrigin, 16);
+    else
+      intersect = rayCubeIntersect(origin, direction, normal, blockIter, 1);
+    ivec3 nextBlock(ipart(intersect.x + eps), ipart(intersect.y + eps), ipart(intersect.z + eps));
+    if(fpart(intersect.x) < eps && direction.x < 0)
+      nextBlock.x -= 1;
+    if(fpart(intersect.y) < eps && direction.y < 0)
+      nextBlock.y -= 1;
+    if(fpart(intersect.z) < eps && direction.z < 0)
+      nextBlock.z -= 1;
+    Block nextMaterial = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
+    if(prevMaterial != nextMaterial)
+    {
+      block = nextBlock;
+      nextMat = nextMaterial;
+      return intersect;
+    }
+    origin = intersect;
+    blockIter = nextBlock;
+  }
+  return vec3(0, 0, 0);
 }
 
 vec3 waterNormal(vec3 position)
 {
   //higher freq = more ripples per distance
-  const float frequency = 0.5;
+  const float frequency = 0.4;
   const double timeScale = 1;
   //since the position of water fragments is perfectly flat,
   //amplitude needs to be very small
@@ -530,6 +528,98 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, int bounces, bool& 
   return (ambient + diffuse * sunDot + specular * powf(sunDot, 10)) * color;
 }
 
+bool visibleFromSun(vec3 pos, bool air)
+{
+  vec3 dir = -sunlight;
+  //if ray is not in air,
+  //  use monte carlo (if any one of several rays escapes
+  //  near the sun, return true
+  //  This allows the ray to pass through all transparent materials, with ideal refraction
+  //otherwise just trace directly towards sun, and
+  //  check if center of sun is directly visible
+  if(air)
+  {
+    ivec3 block;
+    vec3 normal;
+    Block prevMat, nextMat;
+    bool escape;
+    //does a ray pointed at the sun escape?
+    collideRay(pos, -sunlight, block, normal, prevMat, nextMat, escape);
+    return escape;
+  }
+  else
+  {
+    const int samples = 16;
+    const int maxBounces = 4;
+    float threshold = cosSunRadius;
+    vec3 dir = -sunlight;
+    vec3 normal;
+    ivec3 block;  //don't care about this
+    Block prevMat, nextMat;
+    bool escape = false;
+    for(int i = 0; i < samples; i++)
+    {
+      int bounces = 0;
+      while(bounces < maxBounces)
+      {
+        vec3 intersect = collideRay(pos, dir, block, normal, prevMat, nextMat, escape);
+        if(escape && glm::dot(dir, -sunlight) >= cosSunRadius)
+        {
+          //Found a ray that escaped to sun
+          return true;
+        }
+        //update normal if it's water
+        if(prevMat == WATER || nextMat == WATER)
+        {
+          if(normal.y < 0)
+            normal = -waterNormal(intersect);
+          else if(normal.y > 0)
+            normal = waterNormal(intersect);
+        }
+        //sample texel
+        vec4 texel;
+        if(normal.y > 0)
+          texel = sample(nextMat, TOP, intersect.x, intersect.y, intersect.z);
+        else if(normal.y < 0)
+          texel = sample(nextMat, BOTTOM, intersect.x, intersect.y, intersect.z);
+        else
+          texel = sample(nextMat, SIDE, intersect.x, intersect.y, intersect.z);
+        if(texel.w > 0.5)
+        {
+          //opaque texel, this ray doesn't reach sun
+          break;
+        }
+        //otherwise, use refraction or total internal reflection to update dir
+        float nPrev = refractIndex[prevMat];
+        float nNext = refractIndex[nextMat];
+        if(nPrev > nNext)
+        {
+          //Going down in index: need to check for total internal reflection
+          float cosTheta = fabsf(glm::dot(normal, dir));
+          float cosCriticalAngle = cosf(asinf(nNext / nPrev));
+          if(cosTheta >= cosCriticalAngle + eps)
+          {
+            dir = normalize(glm::refract(dir, normal, nPrev / nNext));
+          }
+          else
+          {
+            dir = normalize(glm::reflect(dir, normal));
+          }
+        }
+        else if(nNext > nPrev)
+        {
+          //always refract (no critical angle)
+          dir = normalize(glm::refract(dir, normal, nPrev / nNext));
+        }
+        //else: direction can't change
+        pos = intersect;
+        bounces++;
+      }
+    }
+    return false;
+  }
+}
+
 void toggleFancy()
 {
   fancy = !fancy;
@@ -537,8 +627,8 @@ void toggleFancy()
   {
     RAY_W = 320;
     RAY_H = 200;
-    MAX_BOUNCES = 6;
-    RAYS_PER_PIXEL = 300;
+    MAX_BOUNCES = 4;
+    RAYS_PER_PIXEL = 50;
     RAY_THREADS = 4;
   }
   else
