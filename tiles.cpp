@@ -106,14 +106,14 @@ static int texcoords[3][NUM_TILES][2] =
 float kd[NUM_TILES] =
 {
   0,        //AIR
-  0.8,      //STONE
-  1.0,      //DIRT
-  0.8,      //COAL
-  0.8,      //IRON
-  0.8,      //GOLD
-  0.8,      //DIAMOND
-  1.0,      //LOG
-  1.0,      //LEAF
+  0.4,      //STONE
+  0.4,      //DIRT
+  0.6,      //COAL
+  0.6,      //IRON
+  0.6,      //GOLD
+  0.6,      //DIAMOND
+  0.4,      //LOG
+  0.4,      //LEAF
   0.6,      //WATER
   0.7,      //SAND
   0.0,      //GLASS
