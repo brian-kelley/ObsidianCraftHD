@@ -39,7 +39,7 @@ const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
 const vec3 waterBlue(0.3, 0.5, 0.8);
 //color applied to water when reflect/refract from air
-const vec3 waterHue = vec3(0.6, 0.9, 1.0);
+const vec3 waterHue = vec3(1.0, 1.0, 1.0);
 const float waterClarity = 0.96;
 //sunlight direction
 vec3 sunlight = normalize(vec3(3.0, -1, 2.0));
@@ -269,6 +269,10 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     vec3 normal;
     Block prevMaterial, nextMaterial;
     vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
+    if(glm::length(colorInfluence) < 0.02f)
+    {
+      return color * brightnessAdjust;
+    }
     if(escape)
     {
       return processEscapedRay(intersect, direction, color, colorInfluence, bounces, exact);
@@ -295,7 +299,6 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     {
       //entering water from transparent material
       //apply water hue to all light from now on
-      colorInfluence *= waterHue;
       if(normal.y < 0)
         normal = -waterNormal(intersect);
       else if(normal.y > 0)
@@ -309,9 +312,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       else if(normal.y > 0)
         normal = waterNormal(intersect);
     }
+    if(nextMaterial == WATER)
+    {
+      texel = vec4(waterHue, 0);
+    }
     else if(texel.w < 0.5)
     {
-      //set color to white so that multiplying by components doesn't affect ray
       texel = vec4(1, 1, 1, 0);
     }
     bool refract = false;
@@ -343,9 +349,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     if(refract)
     {
       direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-      //future light contributions affected by transparent material color,
-      //but not past light
-      colorInfluence *= vec3(texel);
+      //colorInfluence *= vec3(texel);
     }
     else
     {
@@ -377,7 +381,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         specContrib = spec * powf(fmax(0, glm::dot(halfway, normal)), 40);
       }
       color += (ambient + diffContrib + specContrib) * vec3(texel) * colorInfluence;
-      if(float(rand()) / RAND_MAX > (spec / (spec + diff)))
+      if(nextMaterial != WATER && float(rand()) / RAND_MAX > (spec / (spec + diff)))
       {
         direction = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
         if(glm::dot(direction, normal) < 0)
@@ -397,7 +401,6 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     //continue from intersection
     origin = intersect;
     bounces++;
-    assert(!isnan(glm::length(direction)));
   }
   //light bounced too many times without reaching light source,
   //so no light contributed from this ray
@@ -463,7 +466,7 @@ vec3 waterNormal(vec3 position)
 {
   //higher freq = more ripples per distance
   const float frequency = 1;
-  const double timeScale = 1;
+  const double timeScale = M_PI;
   //since the position of water fragments is perfectly flat,
   //amplitude needs to be very small
   const double k = 0.01;
@@ -488,11 +491,6 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
   if(MAX_BOUNCES == 1 && direction.y < 0)
   {
     return waterBlue;
-  }
-  if(pos.y <= seaLevel && direction.y <= 0)
-  {
-    //ray goes through infinitely deep ocean: no extra light
-    return color;
   }
   float nwater = refractIndex[WATER];
   if(pos.y < seaLevel && direction.y > 0)
@@ -522,25 +520,16 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     float cosTheta = fabsf(glm::dot(normal, direction));
     float r0 = (1 - nwater) / (1 + nwater);
     r0 *= r0;
-    float reflectProb = r0 + (1 - r0) * powf(1 - cosTheta, 5);
-    if(float(rand()) / RAND_MAX < reflectProb)
+    float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+    if(float(rand()) / RAND_MAX < fresnel)
     {
       //reflect off surface; apply water color times ambient, diffuse, specular
-      //direction = normalize(glm::reflect(direction, normal));
       float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
       vec3 halfway = glm::normalize(-sunlight - direction);
       float specContrib = ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), 40);
       color += (colorInfluence * waterBlue) * (ambient + diffContrib + specContrib);
     }
     //else: enter deep water, no extra light
-  }
-  else
-  {
-    //escape to sky, which has constant color (yellow/blue)
-    if(sunDot > cosSunRadius)
-      color += colorInfluence * sunYellow;
-    else
-      color += colorInfluence * skyBlue;
   }
   return color * brightnessAdjust;
 }
@@ -554,7 +543,6 @@ bool visibleFromSun(vec3 pos, bool air)
   //  This allows the ray to pass through all transparent materials, with ideal refraction
   //otherwise just trace directly towards sun, and
   //  check if center of sun is directly visible
-  air = true;
   if(air)
   {
     ivec3 block;
@@ -654,10 +642,10 @@ void toggleFancy()
   fancy = !fancy;
   if(fancy)
   {
-    RAY_W = 320;
-    RAY_H = 200;
-    MAX_BOUNCES = 4;
-    RAYS_PER_PIXEL = 50;
+    RAY_W = 640;
+    RAY_H = 480;
+    MAX_BOUNCES = 5;
+    RAYS_PER_PIXEL = 100;
     RAY_THREADS = 4;
   }
   else

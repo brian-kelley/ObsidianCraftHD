@@ -348,9 +348,15 @@ void terrainGen()
           bool nearWater = false;
           for(int i = -2; i <= 2; i++)
           {
-            for(int k = -2; k <= 2; k++)
+            for(int j = -2; j <= 2; j++)
             {
-              nearWater |= (getBlock(x + i, y, z + k) == WATER);
+              for(int k = -2; k <= 2; k++)
+              {
+                if(getBlock(x + i, y + j, z + k) == WATER)
+                {
+                  nearWater = true;
+                }
+              }
             }
           }
           if(nearWater)
