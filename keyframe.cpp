@@ -152,6 +152,14 @@ void animate(float sec, string folder)
   {
     keyframeQuats.push_back(eulerToQuat(kf.y, kf.p));
   }
+  //make sure all LERPs produce shortest path
+  for(size_t i = 1; i < keyframeQuats.size(); i++)
+  {
+    if(glm::dot(keyframeQuats[i - 1], keyframeQuats[i]) < 0)
+    {
+      keyframeQuats[i] *= -1.0f;
+    }
+  }
   toggleFancy();
   for(int f = 0; f < timesteps; f++)
   {
@@ -184,8 +192,8 @@ void animate(float sec, string folder)
     vec4 splineArg(1, su, su*su, su*su*su);
     //set camera position
     player = spline.matrix * splineArg;
-    //slerp between the current two keyframe orientations (shortest path)
-    setViewQuat(glm::slerp(keyframeQuats[current], keyframeQuats[(current + 1) % n], su));
+    //lerp between two keyframe orientations
+    setViewQuat(normalize(glm::mix(keyframeQuats[current], keyframeQuats[(current + 1) % n], su)));
     char fname[32];
     sprintf(fname, "%s/f_%05d.png", folder.c_str(), f);
     render(true, string(fname));

@@ -34,17 +34,17 @@ bool fancy = false;
 #endif
 
 const float ambient = 0.1;
-const vec3 skyBlue(0.7, 0.7, 1);
+const vec3 skyBlue(0.34, 0.78, 1.0);
 const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
-const vec3 waterBlue(0.3, 0.5, 0.8);
+const vec3 waterBlue(0.15, 0.3, 0.5);
 //color applied to water when reflect/refract from air
 const vec3 waterHue = vec3(1.0, 1.0, 1.0);
 const float waterClarity = 0.96;
 //sunlight direction
 vec3 sunlight = normalize(vec3(3.0, -1, 2.0));
 const float cosSunRadius = 0.998;
-const float brightnessAdjust = 4;
+const float brightnessAdjust = 5;
 
 ostream& operator<<(ostream& os, vec3 v)
 {
@@ -269,7 +269,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     vec3 normal;
     Block prevMaterial, nextMaterial;
     vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
-    if(glm::length(colorInfluence) < 0.02f)
+    if(glm::length(colorInfluence) < 0.05f)
     {
       return color * brightnessAdjust;
     }
@@ -486,7 +486,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     if(sunDot >= cosSunRadius)
       return sunYellow;
     else
-      return skyBlue;
+      return skyBlue * (0.7f + 0.3f * acosf(direction.y));
   }
   if(MAX_BOUNCES == 1 && direction.y < 0)
   {
@@ -495,6 +495,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
   float nwater = refractIndex[WATER];
   if(pos.y < seaLevel && direction.y > 0)
   {
+    /*
     vec3 throughWater = direction * (pos.y / direction.y);
     vec3 intersect = pos + throughWater;
     vec3 normal = waterNormal(intersect);
@@ -510,6 +511,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
         skyColor = sunYellow;
       color += colorInfluence * powf(waterClarity, glm::length(throughWater)) * skyColor;
     }
+    */
     //else: internal reflection, no extra light
   }
   else if(pos.y >= seaLevel && direction.y < 0)
@@ -528,6 +530,8 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       vec3 halfway = glm::normalize(-sunlight - direction);
       float specContrib = ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), 40);
       color += (colorInfluence * waterBlue) * (ambient + diffContrib + specContrib);
+      direction = normalize(glm::reflect(direction, normal));
+      colorInfluence *= (1 - fresnel) * ks[WATER];
     }
     //else: enter deep water, no extra light
   }
@@ -561,7 +565,7 @@ bool visibleFromSun(vec3 pos, bool air)
   }
   else
   {
-    const int samples = 64;
+    const int samples = 16;
     const int maxBounces = 4;
     float threshold = 0.99;
     vec3 normal;
@@ -571,10 +575,18 @@ bool visibleFromSun(vec3 pos, bool air)
     for(int i = 0; i < samples; i++)
     {
       //Choose a random direction to try which is in hemisphere of sun
-      vec3 dir(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX);
-      if(glm::dot(dir, -sunlight) < 0)
+      vec3 dir;
+      if(i == 0)
       {
-        dir = -dir;
+        dir = -sunlight;
+      }
+      else
+      {
+        dir = vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX);
+        if(glm::dot(dir, -sunlight) < 0)
+        {
+          dir = -dir;
+        }
       }
       int bounces = 0;
       while(bounces < maxBounces)
@@ -645,7 +657,7 @@ void toggleFancy()
     RAY_W = 640;
     RAY_H = 480;
     MAX_BOUNCES = 5;
-    RAYS_PER_PIXEL = 100;
+    RAYS_PER_PIXEL = 60;
     RAY_THREADS = 4;
   }
   else
