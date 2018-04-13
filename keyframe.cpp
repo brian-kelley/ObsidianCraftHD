@@ -52,6 +52,14 @@ void loadKeyframes(string fname)
 
 const int splineSteps = 256;
 
+const float catmullValues[16] = {
+  0, -0.5, 1, -0.5,
+  1, 0, -2.5, 1.5,
+  0, 0.5, 2, -1.5,
+  0, 0, -0.5, 0.5};
+
+const mat4 catmullBasis = glm::transpose(glm::make_mat4(catmullValues));
+
 struct Spline
 {
   Spline(vec3* points)
@@ -64,13 +72,7 @@ struct Spline
       G[i][1] = points[i].y;
       G[i][2] = points[i].z;
     }
-    float bvals[16] = {
-      0, -0.5, 1, -0.5,
-      1, 0, -2.5, 1.5,
-      0, 0.5, 2, -1.5,
-      0, 0, -0.5, 0.5};
-    glm::mat4 B = glm::transpose(glm::make_mat4(bvals));
-    matrix = G*B;
+    matrix = G * catmullBasis;
     ulength.resize(splineSteps + 1);
     ulength[0] = 0;
     for(int i = 1; i <= splineSteps; i++)
@@ -117,6 +119,7 @@ extern double currentTime;
 
 void animate(float sec, string folder)
 {
+  const int fps = 60;
   //construct Catmull-Rom splines to pass through each keyframe
   //need at least 4 keyframes to do this
   int n = keyframes.size();
@@ -146,7 +149,8 @@ void animate(float sec, string folder)
   {
     arclenPrefix[i] /= arclenPrefix[n];
   }
-  float timesteps = sec * 30;
+  //render enough frames to make a 30 fps video $sec seconds long
+  float timesteps = sec * fps;
   vector<glm::quat> keyframeQuats;
   for(auto& kf : keyframes)
   {
@@ -164,7 +168,7 @@ void animate(float sec, string folder)
   for(int f = 0; f < timesteps; f++)
   {
     cout << "Rendering frame " << f+1 << " of " << timesteps << '\n';
-    currentTime = float(f) / 30;
+    currentTime = float(f) / fps;
     float t = float(f) / timesteps;
     //figure out which spline t is in
     int current;
@@ -175,25 +179,58 @@ void animate(float sec, string folder)
         break;
       }
     }
-    Spline& spline = splines[current];
-    float st = (t - arclenPrefix[current]) / (arclenPrefix[current + 1] - arclenPrefix[current]);
+    //use arclenPrefix to figure out which spline t corresponds to
+    //call the spline index s
+    int s = 0;
+    int n = splines.size();
+    for(size_t i = 0; i < n; i++)
+    {
+      if(t >= arclenPrefix[i] && t < arclenPrefix[i + 1])
+      {
+        s = i;
+        break;
+      }
+    }
+    Spline& spline = splines[s];
+    //get t parameter within spline (still arclength parameterized and in unit interval)
+    float st = (t - arclenPrefix[s]) / (arclenPrefix[s + 1] - arclenPrefix[s]);
+    //get final spline parameter u (NOT arclength parameterized)
     float su = 0;
-    //figure out proper t within spline to keep constant speed
     for(int i = 0; i < splineSteps; i++)
     {
       if(st >= spline.ulength[i] && st < spline.ulength[i + 1])
       {
         float k = (st - spline.ulength[i]) / (spline.ulength[i + 1] - spline.ulength[i]);
-        su = k * spline.ulength[i + 1] + (1 - k) * spline.ulength[i];
+        su = (float(i) + k) / splineSteps;
         break;
       }
     }
-    //compute proper point on current spline
+    //compute the point on spline
     vec4 splineArg(1, su, su*su, su*su*su);
-    //set camera position
     player = spline.matrix * splineArg;
-    //lerp between two keyframe orientations
-    setViewQuat(normalize(glm::mix(keyframeQuats[current], keyframeQuats[(current + 1) % n], su)));
+    //compute orientation by interpolating keyframe quaternions
+    glm::mat4 controlQuatMat;
+    quat controlQuats[4];
+    for(int i = 0; i < 4; i++)
+    {
+      controlQuats[i] = keyframeQuats[(s + i - 1 + n) % n];
+    }
+    for(int i = 1; i < 4; i++)
+    {
+      if(glm::dot(controlQuats[i - 1], controlQuats[i]) < 0)
+      {
+        controlQuats[i] = -controlQuats[i];
+      }
+    }
+    for(int i = 0; i < 4; i++)
+    {
+      for(int j = 0; j < 4; j++)
+      {
+        controlQuatMat[i][j] = controlQuats[i][j];
+      }
+    }
+    vec4 orientVector = normalize(controlQuatMat * catmullBasis * splineArg);
+    setViewQuat(quat(orientVector.w, orientVector.x, orientVector.y, orientVector.z));
     char fname[32];
     sprintf(fname, "%s/f_%05d.png", folder.c_str(), f);
     render(true, string(fname));

@@ -11,6 +11,8 @@ using glm::vec3;
 using glm::ivec3;
 using glm::vec4;
 using glm::mat4;
+using glm::quat;
+using glm::normalize;
 
 #endif
 

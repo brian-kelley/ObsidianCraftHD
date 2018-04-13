@@ -448,7 +448,192 @@ void terrainGen()
     //float rxz = 2 * ry / 3;
     replaceEllipsoid(AIR, LEAF, x, y + 1 + 0.833 * treeHeight, z, treeHeight * 0.4, treeHeight * 0.5, treeHeight * 0.4);
   }
+  createTower(0.2 * (chunksX * 16), 0.2 * (chunksZ * 16));
+  createCastle(0.9 * (chunksX * 16), 0.15 * (chunksZ * 16));
   setNumFilled();
+}
+
+void createTower(int x, int z)
+{
+  const int xsize = 16;
+  const int zsize = 12;
+  const Block floorMaterial = QUARTZ;
+  const Block wallMaterial = OBSIDIAN;
+  //find elevation at (x, z)
+  int elev = chunksY * 16;
+  int lox = x - xsize / 2;
+  int hix = x + xsize / 2;
+  int loz = z - zsize / 2;
+  int hiz = z + zsize / 2;
+  int maxHeight = 50;
+  const int floorHeight = 5;
+  for(; elev >= 0 && getBlock(x, elev, z) == AIR; elev--);
+  //build a "foundation" of stone at the base 
+  for(int i = lox; i <= hix; i++)
+  {
+    for(int j = loz; j <= hiz; j++)
+    {
+      for(int k = 0; k <= elev; k++)
+      {
+        setBlock(STONE, i, k, j);
+      }
+    }
+  }
+  //add floors of the tower up to sky limit
+  int floorElev = elev;
+  while(floorElev + floorHeight <= elev + maxHeight)
+  {
+    for(int i = lox; i <= hix; i++)
+    {
+      for(int j = loz; j <= hiz; j++)
+      {
+        for(int k = floorElev; k <= floorElev + floorHeight; k++)
+        {
+          //how many walls does (i, k, j) intersect?
+          int wallIntersect = 0;
+          bool inFloor = false;
+          if(i == lox || i == hix)
+            wallIntersect++;
+          if(j == loz || j == hiz)
+            wallIntersect++;
+          if(k == floorElev || k == floorElev + floorHeight)
+          {
+            wallIntersect++;
+            inFloor = true;
+          }
+          if(wallIntersect >= 2)
+          {
+            //in frame (edges)
+            setBlock(wallMaterial, i, k, j);
+          }
+          else if(wallIntersect == 1)
+          {
+            if(inFloor)
+              setBlock(floorMaterial, i, k, j);
+            else
+              setBlock(GLASS, i, k, j);
+          }
+          else
+          {
+            setBlock(AIR, i, k, j);
+          }
+        }
+      }
+    }
+    floorElev += floorHeight;
+  }
+}
+
+void createCastle(int x, int z)
+{
+  //dimensions should be odd and divisible by 7
+  const int xsize = 21;
+  const int zsize = 35;
+  const int height = 15;
+  //find elevation at (x, z)
+  int elev = chunksY * 16;
+  int lox = x - xsize / 2;
+  int hix = x + xsize / 2;
+  int loz = z - zsize / 2;
+  int hiz = z + zsize / 2;
+  for(; elev >= 0 && getBlock(x, elev, z) == AIR; elev--);
+  //build foundation of obsidian
+  for(int i = lox - 10; i <= hix + 10; i++)
+  {
+    for(int j = loz - 10; j <= hiz + 10; j++)
+    {
+      for(int k = 0; k <= elev; k++)
+      {
+        //moat
+        if(k >= elev - 5 &&
+            (i >= lox - 7 && i <= hix + 7 && j >= loz - 7 && j <= hiz + 7) &&
+            ((i < lox - 2 && i >= lox - 7) || (j < loz - 2 && j >= loz - 7) || (i > hix + 2 && i <= hix + 7) || (j > hiz + 2 && j <= hiz + 7)))
+          setBlock(WATER, i, k, j);
+        else
+          setBlock(OBSIDIAN, i, k, j);
+      }
+      //clear space above platform
+      for(int k = elev + 1; k < chunksY * 16; k++)
+      {
+        setBlock(AIR, i, k, j);
+      }
+    }
+  }
+  //build stone walls
+  for(int i = lox; i <= hix; i++)
+  {
+    for(int j = elev; j <= elev + height + (i % 2 ? 1 : 0); j++)
+    {
+      setBlock(STONE, i, j, loz);
+      setBlock(STONE, i, j, hiz);
+    }
+    if((i - lox) % 7 == 3)
+    {
+      //add a reinforcing rib outside the wall
+      for(int j = elev; j <= elev + height - 2; j++)
+      {
+        setBlock(OBSIDIAN, i, j, loz - 1);
+        setBlock(OBSIDIAN, i, j, hiz + 1);
+        if(j < elev + height / 2)
+        {
+          setBlock(OBSIDIAN, i, j, loz - 2);
+          setBlock(OBSIDIAN, i, j, hiz + 2);
+        }
+      }
+    }
+  }
+  for(int i = loz; i <= hiz; i++)
+  {
+    for(int j = elev; j <= elev + height + (i % 2 ? 1 : 0); j++)
+    {
+      setBlock(STONE, lox, j, i);
+      setBlock(STONE, hix, j, i);
+    }
+    if((i - loz) % 7 == 3)
+    {
+      //add a reinforcing rib outside the wall
+      for(int j = elev; j <= elev + height - 2; j++)
+      {
+        setBlock(OBSIDIAN, lox - 1, j, i);
+        setBlock(OBSIDIAN, hix + 1, j, i);
+        if(j < elev + height / 2)
+        {
+          setBlock(OBSIDIAN, lox - 2, j, i);
+          setBlock(OBSIDIAN, hix + 2, j, i);
+        }
+      }
+    }
+  }
+  //wooden bridge over moat
+  int bridgeZ = (loz + hiz) / 2;
+  for(int i = lox - 10; i < lox; i++)
+  {
+    for(int k = bridgeZ - 2; k <= bridgeZ + 2; k++)
+    {
+      setBlock(LOG, i, elev + 1, k);
+      //clear space above
+      for(int j = elev + 2; j < elev + height; j++)
+      {
+        setBlock(AIR, i, j, k);
+      }
+    }
+  }
+  //create a gateway at end of bridge
+  for(int i = bridgeZ - 2; i <= bridgeZ + 2; i++)
+  {
+    for(int j = elev + 1; j < elev + 7 - std::abs(bridgeZ - i); j++)
+    {
+      setBlock(AIR, lox, j, i);
+    }
+  }
+  //wooden roof
+  for(int i = lox + 1; i <= hix - 1; i++)
+  {
+    for(int k = loz + 1; k <= hiz - 1; k++)
+    {
+      setBlock(LOG, i, elev + height - 1, k);
+    }
+  }
 }
 
 void printWorldComposition()

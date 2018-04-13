@@ -205,7 +205,7 @@ int main(int argc, const char** argv)
   if(doAnimate)
   {
     loadKeyframes("keyframes.txt");
-    animate(20, "frames");
+    animate(30, "frames");
     exit(0);
   }
   if(!doAnimate)

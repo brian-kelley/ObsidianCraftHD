@@ -17,9 +17,9 @@ typedef struct
 
 // Note: 16x8x16 is the original size of MCPE worlds
 
-#define chunksX 24
-#define chunksY 12
-#define chunksZ 24
+#define chunksX 12
+#define chunksY 24
+#define chunksZ 12
 #define totalChunks (chunksX * chunksY * chunksZ)
 #define seaLevel (chunksY * 16 / 2)
 
@@ -32,6 +32,9 @@ extern Chunk chunks[chunksX][chunksY][chunksZ];
 void setBlock(Block b, int x, int y, int z);
 Block getBlock(int x, int y, int z);
 bool blockInBounds(int x, int y, int z);
+
+void createTower(int x, int z);
+void createCastle(int x, int z);
 
 #endif
 

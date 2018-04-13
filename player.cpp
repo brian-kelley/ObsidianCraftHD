@@ -175,15 +175,22 @@ bool moveHitbox(Hitbox* hb, int dir, float d)
 void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump, int dy)
 {
   bool viewStale = false;
+  //setting dy directly means player is flying with T/G
   if(dy)
   {
     GRAVITY = 0;
     vel.y = dy * JUMP_SPEED;
   }
+  //but jumping is enabled if player is hovering OR standing on ground
   else if(jump && onGround)
   {
     GRAVITY = 20;
     vel.y = JUMP_SPEED;
+    onGround = false;
+  }
+  else if(jump && GRAVITY == 0)
+  {
+    GRAVITY = 20;
     onGround = false;
   }
   //handle orientation changes via ijkl
