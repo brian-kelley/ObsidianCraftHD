@@ -40,7 +40,7 @@ const float ambient = 0.05;
 //but they have a range of specular intensities
 //If this is ever changed to be per-material, water should have
 //this exact value
-const float specExpo = 70;
+const float specExpo = 15;
 const vec3 skyBlue(0.34, 0.78, 1.0);
 const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
@@ -49,8 +49,10 @@ const vec3 waterBlue(0.15, 0.3, 0.5);
 const vec3 waterHue = vec3(0.6, 0.8, 0.9);
 const float waterClarity = 0.96;
 //sunlight direction
-vec3 sunlight = normalize(vec3(1.0, -1, 0.5));
+vec3 sunlight = normalize(vec3(8.0, -1, 0.5));
 const float cosSunRadius = 0.998;
+//multiply all ray contributions by this to keep image
+//brightness in a reasonable range
 const float brightnessAdjust = 5;
 
 ostream& operator<<(ostream& os, vec3 v)
@@ -474,16 +476,15 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
 vec3 waterNormal(vec3 position)
 {
   //higher freq = more ripples per distance
-  const float frequency = 0.6;
-  const double timeScale = M_PI;
+  //can vary as a function of position as long as it is continuous
+  const float frequency = 1;// + powf(M_PI / 2, -2) * atanf(position.x + position.z);
+  const float timeScale = M_PI;
   //this is just a normal map over perfectly smooth water
   //to be plausible in shallow water, amplitude needs to be fairly small
-  const double k = 0.05;
-  double scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  //double x = fpart(position.x) * 2 * M_PI * frequency + scaledTime;
-  //double z = fpart(position.z) * 2 * M_PI * frequency + scaledTime;
-  double x = position.x * 2 * M_PI * frequency + scaledTime;
-  double z = position.z * 2 * M_PI * frequency + scaledTime;
+  const float k = 0.03;
+  float scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
+  float x = position.x * 2 * M_PI * (1.5 * frequency) + scaledTime;
+  float z = position.z * 2 * M_PI * frequency + scaledTime;
   return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
 }
 
@@ -513,7 +514,6 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     float r0 = (1 - nwater) / (1 + nwater);
     r0 *= r0;
     float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
-    //direction = normalize(glm::reflect(direction, normal));
     //reflect off surface; apply water color times ambient, diffuse, specular
     float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
     vec3 halfway = normalize(-sunlight - direction);
@@ -542,6 +542,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       }
     }
     //now if direction is upwards, add sky/sun contribution
+    /*
     if(direction.y > 0)
     {
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
@@ -549,6 +550,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       else
         color += colorInfluence * skyBlue;
     }
+    */
   }
   return color * brightnessAdjust;
 }
