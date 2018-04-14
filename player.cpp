@@ -129,7 +129,8 @@ bool moveHitbox(Hitbox* hb, int dir, float d)
     {
       for(int bz = hb->z; bz <= hb->z + hb->w; bz++)
       {
-        if(getBlock(bx, by, bz) != AIR)
+        Block block = getBlock(bx, by, bz);
+        if(block != AIR && block != WATER)
         {
           collide = true;
           break;

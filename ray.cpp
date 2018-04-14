@@ -50,7 +50,7 @@ const vec3 waterBlue(0.15, 0.3, 0.5);
 const vec3 waterHue = vec3(0.6, 0.8, 0.9);
 const float waterClarity = 0.96;
 //sunlight direction
-vec3 sunlight = normalize(vec3(8.0, -1, 0.5));
+vec3 sunlight = normalize(vec3(1.0, -1, 0.5));
 const float cosSunRadius = 0.998;
 //multiply all ray contributions by this to keep image
 //brightness in a reasonable range
@@ -354,14 +354,24 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       else
       {
         float cosCriticalAngle = cosf(asinf(nNext / nPrev));
-        if(cosTheta >= cosCriticalAngle)
+        if(cosTheta > cosCriticalAngle)
+        {
           refract = true;
+        }
+        else if(prevMaterial == WATER)
+        {
+          colorInfluence *= waterHue;
+        }
       }
     }
     if(refract)
     {
       direction = normalize(glm::refract(direction, normal, nPrev / nNext));
-      colorInfluence *= vec3(texel);
+      if(prevMaterial == WATER)
+      {
+        float waterDarken = powf(waterClarity, glm::length(origin - intersect));
+        colorInfluence *= waterDarken;
+      }
     }
     else
     {
@@ -688,14 +698,14 @@ void toggleFancy()
     RAY_W = 640;
     RAY_H = 480;
     MAX_BOUNCES = 6;
-    RAYS_PER_PIXEL = 50;
+    RAYS_PER_PIXEL = 40;
     RAY_THREADS = 4;
   }
   else
   {
     RAY_W = 200;
     RAY_H = 150;
-    MAX_BOUNCES = 2;
+    MAX_BOUNCES = 1;
     RAYS_PER_PIXEL = 1;
     RAY_THREADS = 4;
   }

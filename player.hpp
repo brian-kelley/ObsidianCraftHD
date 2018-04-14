@@ -8,7 +8,7 @@
 #define PLAYER_WIDTH 0.8
 #define PLAYER_REACH 5      //how far player can place and destroy
 #define BREAK_TIME 15       //how many frames it takes to break a block
-#define PLAYER_SPEED 5      //horizontal movement speed
+#define PLAYER_SPEED 9      //horizontal movement speed
 #define JUMP_SPEED 9        //vertical takeoff speed of jump
 extern int GRAVITY;         //g, in m/s^2
 #define TERMINAL_VELOCITY 20

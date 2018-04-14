@@ -119,7 +119,7 @@ extern double currentTime;
 
 void animate(float sec, string folder)
 {
-  const int fps = 60;
+  const int fps = 30;
   //construct Catmull-Rom splines to pass through each keyframe
   //need at least 4 keyframes to do this
   int n = keyframes.size();
@@ -130,7 +130,7 @@ void animate(float sec, string folder)
   }
   //construct a sequence of splines to pass between each pair of keyframes
   vector<Spline> splines;
-  for(int i = 0; i < n; i++)
+  for(int i = 0; i < n - 1; i++)
   {
     vec3 points[4];
     for(int j = 0; j < 4; j++)
@@ -139,15 +139,15 @@ void animate(float sec, string folder)
     }
     splines.emplace_back(points);
   }
-  vector<float> arclenPrefix(keyframes.size() + 1);
+  vector<float> arclenPrefix(splines.size() + 1);
   arclenPrefix[0] = 0;
-  for(int i = 0; i < n; i++)
+  for(int i = 0; i < n - 1; i++)
   {
     arclenPrefix[i + 1] = arclenPrefix[i] + splines[i].arclen;
   }
-  for(int i = 0; i <= n; i++)
+  for(int i = 0; i <= n - 1; i++)
   {
-    arclenPrefix[i] /= arclenPrefix[n];
+    arclenPrefix[i] /= arclenPrefix[n - 1];
   }
   //render enough frames to make a 30 fps video $sec seconds long
   float timesteps = sec * fps;
@@ -170,20 +170,11 @@ void animate(float sec, string folder)
     cout << "Rendering frame " << f+1 << " of " << timesteps << '\n';
     currentTime = float(f) / fps;
     float t = float(f) / timesteps;
-    //figure out which spline t is in
-    int current;
-    for(current = 0; current < n; current++)
-    {
-      if(t >= arclenPrefix[current] && t < arclenPrefix[current + 1])
-      {
-        break;
-      }
-    }
     //use arclenPrefix to figure out which spline t corresponds to
     //call the spline index s
     int s = 0;
-    int n = splines.size();
-    for(size_t i = 0; i < n; i++)
+    int n = keyframes.size();
+    for(size_t i = 0; i < splines.size(); i++)
     {
       if(t >= arclenPrefix[i] && t < arclenPrefix[i + 1])
       {
