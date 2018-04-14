@@ -36,11 +36,12 @@ bool fancy = false;
 //ambient factor should be small, as it is not realistic at
 //all but just makes shadows easier on the eyes
 const float ambient = 0.05;
+//scale all specular light contributions by this
+const float specularScale = 1.5;
 //All materials use the same Blinn-Phong specular exponent,
 //but they have a range of specular intensities
 //If this is ever changed to be per-material, water should have
 //this exact value
-const float specExpo = 15;
 const vec3 skyBlue(0.34, 0.78, 1.0);
 const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
@@ -384,8 +385,9 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       if(!shadowed)
       {
         diffContrib = diff * fmax(0, glm::dot(normal, -sunlight));
-        vec3 halfway = normalize(-sunlight - direction);
-        specContrib = spec * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+        vec3 reflected = glm::reflect(direction, normal);
+        if(glm::dot(reflected, -sunlight) >= cosSunRadius)
+          specContrib = spec * specularScale;
       }
       color += (ambient + diffContrib + specContrib) * vec3(texel) * colorInfluence;
       //decide whether to add specular or diffuse lighting from sun,
@@ -476,15 +478,18 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
 vec3 waterNormal(vec3 position)
 {
   //higher freq = more ripples per distance
-  //can vary as a function of position as long as it is continuous
-  const float frequency = 1;// + powf(M_PI / 2, -2) * atanf(position.x + position.z);
+  //frequency is 1 near origin and approaches 2 at horizon
+  const float frequency = 0.3 - 0.2 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
   const float timeScale = M_PI;
   //this is just a normal map over perfectly smooth water
   //to be plausible in shallow water, amplitude needs to be fairly small
   const float k = 0.03;
   float scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  float x = position.x * 2 * M_PI * (1.5 * frequency) + scaledTime;
+  float x = position.x * 2 * M_PI * frequency + scaledTime;
   float z = position.z * 2 * M_PI * frequency + scaledTime;
+  //add a circular displacement to x/z parameters to reduce Moire patterns at long distance
+  x *= (1 + 0.05 * sin(position.x / 11) * cos(position.z / 17));
+  z *= (1 + 0.05 * cos(position.x / 17) * sin(position.z / 11));
   return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
 }
 
@@ -507,27 +512,36 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
   float nwater = refractIndex[WATER];
   if(pos.y >= seaLevel && direction.y < 0)
   {
-    vec3 intersect = pos - direction * (pos.y / direction.y);
+    vec3 intersect = pos - direction * ((pos.y - seaLevel) / direction.y);
     vec3 normal = waterNormal(intersect);
     //smaller angle of incidence means more likely to refract (Fresnel)
-    float cosTheta = fabsf(glm::dot(normal, direction));
+    float cosTheta = fabsf(glm::dot(normal, -direction));
     float r0 = (1 - nwater) / (1 + nwater);
     r0 *= r0;
     float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
     //reflect off surface; apply water color times ambient, diffuse, specular
-    float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
-    vec3 halfway = normalize(-sunlight - direction);
-    float specContrib = ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
     if(float(rand()) / RAND_MAX <= fresnel)
+    {
+      float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
+      direction = normalize(glm::reflect(direction, normal));
+      float specContrib = glm::dot(direction, -sunlight) > cosSunRadius ? ks[WATER] : 0;
+      specContrib *= specularScale;
       color += (colorInfluence * waterBlue) * (ambient + diffContrib + specContrib);
-    //else: enter deep water, no extra light
+      float reflectivity = fmin(1, 0.5 * (ks[WATER] + 0.3 * kd[WATER]) * fresnel);
+      colorInfluence *= (reflectivity * desaturate(waterBlue, 0));
+    }
+    else
+    {
+      //refract to below water
+      direction = normalize(glm::refract(direction, normal, 1 / nwater));
+    }
   }
-  else if(direction.y > 0)
+  if(direction.y > 0)
   {
-    if(pos.y < 0)
+    if(pos.y < seaLevel)
     {
       //trace ray up to water surface
-      vec3 intersect = pos - direction * (pos.y / direction.y);
+      vec3 intersect = pos - direction * ((pos.y - seaLevel) / direction.y);
       vec3 normal = waterNormal(intersect);
       if(glm::dot(normal, direction) > cosf(acosf(1 / nwater)))
       {
@@ -541,16 +555,14 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
         direction = normalize(glm::reflect(direction, normal));
       }
     }
-    //now if direction is upwards, add sky/sun contribution
-    /*
+    //if direction is still upwards, add sky/sun contribution
     if(direction.y > 0)
     {
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
-        color += colorInfluence * sunYellow;
+        color += colorInfluence * 0.5f * sunYellow;
       else
-        color += colorInfluence * skyBlue;
+        color += colorInfluence * 0.5f * skyBlue;
     }
-    */
   }
   return color * brightnessAdjust;
 }
