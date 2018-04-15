@@ -23,9 +23,12 @@ void initRay();
 void render(bool write, string fname = "");
 //get color (light contribution) from a single ray
 vec3 trace(vec3 origin, vec3 direction, bool& exact);
+//get best non-fancy approximation of pixel color with a single ray
+vec3 traceFast(vec3 origin, vec3 direction);
 vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape);
 vec3 waterNormal(vec3 position);
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence, int bounces, bool& exact);
+vec3 processEscapedRayFast(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence);
 //Is there a direct path from given position to the sun?
 //If pos is underwater, has to use monte carlo method to decide
 //Otherwise, trace direct ray and see if it hits anything

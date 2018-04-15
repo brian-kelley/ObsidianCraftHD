@@ -141,11 +141,11 @@ void terrainGen()
           int z = cz * 16 + k;
           float dist = sqrtf(powf(x - wx / 2, 2) + powf(y - wy / 2, 2));
           float radius = std::min(wx / 2, wz / 2);
-          if(dist < radius * 0.5)
+          if(dist < radius * 0.2)
             setBlock(4, x, y, z);
-          else if(dist < radius * 0.7)
+          else if(dist < radius * 0.5)
             setBlock(2, x, y, z);
-          else if(dist < radius * 0.9)
+          else if(dist < radius * 0.7)
             setBlock(1, x, y, z);
           else
             setBlock(0, x, y, z);
@@ -448,8 +448,8 @@ void terrainGen()
     //float rxz = 2 * ry / 3;
     replaceEllipsoid(AIR, LEAF, x, y + 1 + 0.833 * treeHeight, z, treeHeight * 0.4, treeHeight * 0.5, treeHeight * 0.4);
   }
-  createTower(0.2 * (chunksX * 16), 0.2 * (chunksZ * 16));
-  createCastle(0.9 * (chunksX * 16), 0.15 * (chunksZ * 16));
+  createTower(0.25 * (chunksX * 16), 0.25 * (chunksZ * 16));
+  createCastle(0.75 * (chunksX * 16), 0.25 * (chunksZ * 16));
   setNumFilled();
 }
 
@@ -465,7 +465,7 @@ void createTower(int x, int z)
   int hix = x + xsize / 2;
   int loz = z - zsize / 2;
   int hiz = z + zsize / 2;
-  int maxHeight = 50;
+  int maxHeight = 30;
   const int floorHeight = 5;
   for(; elev >= 0 && getBlock(x, elev, z) == AIR; elev--);
   //build a "foundation" of stone at the base 

@@ -35,9 +35,10 @@ bool fancy = false;
 
 //ambient factor should be small, as it is not realistic at
 //all but just makes shadows easier on the eyes
-const float ambient = 0.05;
+const float ambient = 0.08;
 //scale all specular light contributions by this
-const float specularScale = 1.5;
+const float specularScale = 1;
+const float specExpo = 80;
 //All materials use the same Blinn-Phong specular exponent,
 //but they have a range of specular intensities
 //If this is ever changed to be per-material, water should have
@@ -90,17 +91,24 @@ void renderPixel(int x, int y)
   frontWorld = viewInv * frontWorld;
   vec3 direction = normalize(vec3(frontWorld) - vec3(backWorld));
   vec3 color(0, 0, 0);
-  for(int j = 0; j < RAYS_PER_PIXEL; j++)
+  if(fancy)
   {
-    bool exact = false;
-    color += trace(vec3(backWorld), direction, exact);
-    if(exact)
+    for(int j = 0; j < RAYS_PER_PIXEL; j++)
     {
-      color *= RAYS_PER_PIXEL;
-      break;
+      bool exact = false;
+      color += trace(vec3(backWorld), direction, exact);
+      if(exact)
+      {
+        color *= RAYS_PER_PIXEL;
+        break;
+      }
     }
+    color /= RAYS_PER_PIXEL;
   }
-  color /= RAYS_PER_PIXEL;
+  else
+  {
+    color = traceFast(vec3(backWorld), direction);
+  }
   //clamp colors and convert to 8-bit integer components
   byte* pixel = frameBuf + 4 * (x + y * RAY_W);
   pixel[0] = fmin(color.x, 1) * 255;
@@ -430,6 +438,138 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
   return vec3(0, 0, 0);
 }
 
+vec3 traceFast(vec3 origin, vec3 direction)
+{
+  //color components take on the product of texture components
+  vec3 color(0, 0, 0);
+  vec3 colorInfluence(1, 1, 1);
+  while(true)
+  {
+    ivec3 blockIter;
+    bool escape = false;
+    vec3 normal;
+    Block prevMaterial, nextMaterial;
+    vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
+    if(escape)
+    {
+      if(glm::dot(direction, -sunlight) >= cosSunRadius)
+        return sunYellow;
+      else if(prevMaterial == AIR)
+        return skyBlue;
+      else
+        return vec3(0, 0, 0);
+    }
+    //hit a block: sample texture at point of intersection
+    vec4 texel;
+    if(normal.y > 0)
+      texel = sample(nextMaterial, TOP, intersect.x, intersect.y, intersect.z);
+    else if(normal.y < 0)
+      texel = sample(nextMaterial, BOTTOM, intersect.x, intersect.y, intersect.z);
+    else
+      texel = sample(nextMaterial, SIDE, intersect.x, intersect.y, intersect.z);
+    //depending on transparency of sampled texel and approx. Fresnel reflection coefficient,
+    //choose whether to reflect or refract
+    if(isTransparent(prevMaterial) && nextMaterial == WATER)
+    {
+      //entering water from transparent material
+      //apply water hue to all light from now on
+      if(normal.y < 0)
+        normal = -waterNormal(intersect);
+      else if(normal.y > 0)
+        normal = waterNormal(intersect);
+    }
+    else if(isTransparent(nextMaterial) && prevMaterial == WATER)
+    {
+      //apply a blue color to ray
+      if(normal.y < 0)
+        normal = -waterNormal(intersect);
+      else if(normal.y > 0)
+        normal = waterNormal(intersect);
+    }
+    if(prevMaterial == WATER)
+    {
+      colorInfluence *= waterHue * powf(waterClarity, glm::length(origin - intersect));
+    }
+    const float nwater = refractIndex[WATER];
+    if(nextMaterial == WATER)
+    {
+      float r0 = (1 - nwater) / (1 + nwater);
+      r0 *= r0;
+      //compute the Fresnel term using Schlick's approximatoin
+      //this is used to decide refraction vs. reflection,
+      //and also to determine reflectivity during reflection
+      float cosTheta = fabsf(glm::dot(normal, direction));
+      float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+      //draw refracted ray of whatever's underwater, and reflected ray of what's above water
+      vec3 reflectRay = normalize(glm::reflect(direction, normal));
+      vec3 refractRay = normalize(glm::refract(direction, normal, 1 / refractIndex[WATER]));
+      vec3 base = (1-fresnel) * waterHue * traceFast(intersect, refractRay) + fresnel * traceFast(intersect, reflectRay);
+      if(visibleFromSun(intersect, normal, true))
+      {
+        //compute additional specular component
+        vec3 halfway = -normalize(direction + sunlight);
+        float specContrib = specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+        return base + specContrib * vec3(1, 1, 1);
+      }
+    }
+    if(texel.w < 0.5)
+    {
+      //from one transparent medium to another
+      if(prevMaterial == WATER && nextMaterial == AIR)
+      {
+        float cosCriticalAngle = cosf(asinf(1 / nwater));
+        float cosTheta = fabsf(glm::dot(normal, direction));
+        if(cosTheta > cosCriticalAngle)
+        {
+          return waterHue * traceFast(intersect, normalize(glm::refract(direction, normal, nwater)));
+        }
+        else
+        {
+          //total internal reflection, return dark water color to represent
+          return 0.2f * waterBlue;
+        }
+      }
+    }
+    if(texel.w > 0.5)
+    {
+      //reflect ray
+      if(prevMaterial == WATER)
+      {
+        //passed through some water, so reduce ray's brightness
+        float waterDarken = powf(waterClarity, glm::length(origin - intersect));
+        colorInfluence *= waterDarken;
+      }
+      if(nextMaterial == WATER)
+      {
+        //use waterBlue as the reflection color for water
+        texel = vec4(waterBlue, 1);
+      }
+      float spec = ks[nextMaterial];
+      float diff = kd[nextMaterial];
+      //pretend point of interest is in air because it's a much faster test
+      //this means shadows won't be refracted in fast mode
+      bool shadowed = !visibleFromSun(intersect, normal, true);
+      float diffContrib = 0;
+      float specContrib = 0;
+      if(!shadowed)
+      {
+        diffContrib = diff * fmax(0, glm::dot(normal, -sunlight));
+        vec3 halfway = -normalize(sunlight + direction);
+        specContrib = specularScale * spec * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+      }
+      return brightnessAdjust * colorInfluence * ((ambient + diffContrib) * vec3(texel) + vec3(1, 1, 1) * specContrib);
+    }
+    else
+    {
+      //continue tracing in same direction
+      origin = intersect;
+    }
+  }
+  //light bounced too many times without reaching light source,
+  //so no light contributed from this ray
+  return vec3(0, 0, 0);
+}
+
 vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape)
 {
   const float eps = 1e-8;
@@ -489,11 +629,11 @@ vec3 waterNormal(vec3 position)
 {
   //higher freq = more ripples per distance
   //frequency is 1 near origin and approaches 2 at horizon
-  const float frequency = 0.3 - 0.2 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
+  const float frequency = 0.3 - 0.1 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
   const float timeScale = M_PI;
   //this is just a normal map over perfectly smooth water
   //to be plausible in shallow water, amplitude needs to be fairly small
-  const float k = 0.03;
+  const float k = 0.08;
   float scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
   float x = position.x * 2 * M_PI * frequency + scaledTime;
   float z = position.z * 2 * M_PI * frequency + scaledTime;
@@ -514,10 +654,6 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       return sunYellow;
     else
       return skyBlue * (0.7f + 0.3f * acosf(direction.y));
-  }
-  if(MAX_BOUNCES == 1 && direction.y < 0)
-  {
-    return waterBlue;
   }
   float nwater = refractIndex[WATER];
   if(pos.y >= seaLevel && direction.y < 0)
@@ -566,13 +702,43 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       }
     }
     //if direction is still upwards, add sky/sun contribution
-    if(direction.y > 0)
+    if(fancy && direction.y > 0)
     {
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
         color += colorInfluence * 0.5f * sunYellow;
       else
         color += colorInfluence * 0.5f * skyBlue;
     }
+  }
+  return color * brightnessAdjust;
+}
+
+vec3 processEscapedRayFast(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence)
+{
+  float sunDot = glm::dot(direction, -sunlight);
+  //if nothing has been hit yet, return sky or sun color
+  if(pos.y > 0 && direction.y > 0)
+  {
+    if(sunDot >= cosSunRadius)
+      return sunYellow;
+    else
+      return skyBlue * (0.7f + 0.3f * acosf(direction.y));
+  }
+  float nwater = refractIndex[WATER];
+  if(pos.y >= seaLevel && direction.y < 0)
+  {
+    vec3 intersect = pos - direction * ((pos.y - seaLevel) / direction.y);
+    vec3 normal = waterNormal(intersect);
+    //smaller angle of incidence means more likely to refract (Fresnel)
+    float cosTheta = fabsf(glm::dot(normal, -direction));
+    float r0 = (1 - nwater) / (1 + nwater);
+    r0 *= r0;
+    float fresnel = r0 + (1 - r0) * powf(1 - cosTheta, 5);
+    //reflect off surface; apply water color times ambient, diffuse, specular
+    float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
+    vec3 halfway = -normalize(direction + sunlight);
+    float specContrib = specularScale * ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+    return brightnessAdjust * fresnel * (waterBlue * (ambient + diffContrib) + vec3(1, 1, 1) * specContrib);
   }
   return color * brightnessAdjust;
 }
@@ -595,13 +761,36 @@ bool visibleFromSun(vec3 pos, vec3 norm, bool air)
     Block prevMat, nextMat;
     bool escape = false;
     //does a ray pointed at the sun escape?
-    do
+    while(true)
     {
       pos = collideRay(pos, -sunlight, block, normal, prevMat, nextMat, escape);
       if(escape)
         return true;
+      if(!isTransparent(nextMat))
+      {
+        //hit a fully opaque block
+        return false;
+      }
+      else
+      {
+        if(nextMat == GLASS || nextMat == LEAF)
+        {
+          //need to sample texture to figure out if specific
+          //point of intersection is transparent or not
+          //note that top and bottom of glass/leaves are identical
+          vec4 texel;
+          if(normal.y != 0)
+            texel = sample(nextMat, TOP, pos.x, pos.y, pos.z);
+          else
+            texel = sample(nextMat, SIDE, pos.x, pos.y, pos.z);
+          if(texel.w > 0.5)
+          {
+            return false;
+          }
+          //otherwise, continue ray
+        }
+      }
     }
-    while(isTransparent(nextMat));
     return false;
   }
   else
@@ -703,8 +892,8 @@ void toggleFancy()
   }
   else
   {
-    RAY_W = 200;
-    RAY_H = 150;
+    RAY_W = 640;
+    RAY_H = 480;
     MAX_BOUNCES = 1;
     RAYS_PER_PIXEL = 1;
     RAY_THREADS = 4;
