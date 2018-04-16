@@ -627,20 +627,24 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
 
 vec3 waterNormal(vec3 position)
 {
+  float dist = sqrtf(position.x * position.x + position.z * position.z);
   //higher freq = more ripples per distance
   //frequency is 1 near origin and approaches 2 at horizon
-  const float frequency = 0.3 - 0.1 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
+  const float frequency = 0.3 - 0.05 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
   const float timeScale = M_PI;
   //this is just a normal map over perfectly smooth water
   //to be plausible in shallow water, amplitude needs to be fairly small
-  const float k = 0.08;
+  const float k = 0.09;
   float scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
   float x = position.x * 2 * M_PI * frequency + scaledTime;
   float z = position.z * 2 * M_PI * frequency + scaledTime;
   //add a circular displacement to x/z parameters to reduce Moire patterns at long distance
-  x *= (1 + 0.05 * sin(position.x / 11) * cos(position.z / 17));
-  z *= (1 + 0.05 * cos(position.x / 17) * sin(position.z / 11));
-  return normalize(vec3(-k * cos(x) * cos(z), 1, k * sin(x) * sin(z)));
+  if(fancy)
+  {
+    x *= (1 + 0.05 * sin(position.x / 11) * cos(position.z / 17));
+    z *= (1 + 0.05 * cos(position.x / 17) * sin(position.z / 11));
+  }
+  return normalize(vec3(-k * cos(x) * cos(z) + 0.2 * k * cos(x * 5) * cos(z * 5), 1, k * sin(x) * sin(z) - 0.2 * k * sin(5 * x) * sin(5 * z)));
 }
 
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence, int bounces, bool& exact)
