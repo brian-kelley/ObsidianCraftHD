@@ -10,6 +10,8 @@
 #include "stdatomic.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#define STB_PERLIN_IMPLEMENTATION
+#include "stb_perlin.h"
 
 using std::ostream;
 using std::cout;
@@ -19,8 +21,8 @@ using std::ostringstream;
 byte* frameBuf;
 
 extern double currentTime;
-int RAY_W = 200;
-int RAY_H = 150;
+int RAY_W = 320;
+int RAY_H = 200;
 int RAY_THREADS = 4;
 int RAYS_PER_PIXEL = 1;
 int MAX_BOUNCES = 1;
@@ -51,7 +53,7 @@ const vec3 waterBlue(0.15, 0.3, 0.5);
 const vec3 waterHue = vec3(0.6, 0.8, 0.9);
 const float waterClarity = 0.96;
 //sunlight direction
-vec3 sunlight = normalize(vec3(1.0, -1, 0.5));
+vec3 sunlight = normalize(vec3(6.0, -1, 0.5));
 const float cosSunRadius = 0.998;
 //multiply all ray contributions by this to keep image
 //brightness in a reasonable range
@@ -403,11 +405,10 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       if(!shadowed)
       {
         diffContrib = diff * fmax(0, glm::dot(normal, -sunlight));
-        vec3 reflected = glm::reflect(direction, normal);
-        if(glm::dot(reflected, -sunlight) >= cosSunRadius)
-          specContrib = spec * specularScale;
+        vec3 halfway = -normalize(direction + sunlight);
+        specContrib = specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
       }
-      color += (ambient + diffContrib + specContrib) * vec3(texel) * colorInfluence;
+      color += colorInfluence * ((ambient + diffContrib) * vec3(texel) + specContrib * vec3(1, 1, 1));
       //decide whether to add specular or diffuse lighting from sun,
       //based on ks and kd for nextMaterial
       float reflectivity = fmin(1, 0.5 * (spec + 0.3 * diff) * fresnel);
@@ -452,6 +453,7 @@ vec3 traceFast(vec3 origin, vec3 direction)
     vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
     if(escape)
     {
+      //return processEscapedRayFast(intersect, direction, color, colorInfluence);
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
         return sunYellow;
       else if(prevMaterial == AIR)
@@ -526,7 +528,7 @@ vec3 traceFast(vec3 origin, vec3 direction)
         else
         {
           //total internal reflection, return dark water color to represent
-          return 0.2f * waterBlue;
+          return 0.3f * waterBlue;
         }
       }
     }
@@ -627,24 +629,11 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
 
 vec3 waterNormal(vec3 position)
 {
-  float dist = sqrtf(position.x * position.x + position.z * position.z);
-  //higher freq = more ripples per distance
-  //frequency is 1 near origin and approaches 2 at horizon
-  const float frequency = 0.3 - 0.05 * powf(M_PI / 2, -2) * atanf(sqrtf(sqrtf(position.x * position.x + position.z * position.z)));
-  const float timeScale = M_PI;
-  //this is just a normal map over perfectly smooth water
-  //to be plausible in shallow water, amplitude needs to be fairly small
-  const float k = 0.09;
-  float scaledTime = fmod(currentTime, M_PI * 2) * timeScale;
-  float x = position.x * 2 * M_PI * frequency + scaledTime;
-  float z = position.z * 2 * M_PI * frequency + scaledTime;
-  //add a circular displacement to x/z parameters to reduce Moire patterns at long distance
-  if(fancy)
-  {
-    x *= (1 + 0.05 * sin(position.x / 11) * cos(position.z / 17));
-    z *= (1 + 0.05 * cos(position.x / 17) * sin(position.z / 11));
-  }
-  return normalize(vec3(-k * cos(x) * cos(z) + 0.2 * k * cos(x * 5) * cos(z * 5), 1, k * sin(x) * sin(z) - 0.2 * k * sin(5 * x) * sin(5 * z)));
+  //use Perlin noise to generate the normal
+  float t = currentTime;
+  float p1 = 0.04 * stb_perlin_fbm_noise3(position.x + t / 3, 0, position.z + t / 3, 2.5, 0.6, 4, 0, 0, 0);
+  float p2 = 0.04 * stb_perlin_fbm_noise3(1000 - position.x - t / 3, 0, 1000 - position.z - t / 3, 2.5, 0.6, 4, 0, 0, 0);
+  return normalize(vec3(p1, 1, p2));
 }
 
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence, int bounces, bool& exact)
@@ -673,10 +662,10 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     if(float(rand()) / RAND_MAX <= fresnel)
     {
       float diffContrib = kd[WATER] * fmax(0, glm::dot(-sunlight, normal));
+      vec3 halfway = -normalize(direction + sunlight);
+      float specContrib = ks[WATER] * specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+      color += colorInfluence * ((ambient + diffContrib) * waterBlue + specContrib * vec3(1, 1, 1));
       direction = normalize(glm::reflect(direction, normal));
-      float specContrib = glm::dot(direction, -sunlight) > cosSunRadius ? ks[WATER] : 0;
-      specContrib *= specularScale;
-      color += (colorInfluence * waterBlue) * (ambient + diffContrib + specContrib);
       float reflectivity = fmin(1, 0.5 * (ks[WATER] + 0.3 * kd[WATER]) * fresnel);
       colorInfluence *= (reflectivity * desaturate(waterBlue, 0));
     }
@@ -709,9 +698,9 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     if(fancy && direction.y > 0)
     {
       if(glm::dot(direction, -sunlight) >= cosSunRadius)
-        color += colorInfluence * 0.5f * sunYellow;
+        color += colorInfluence * 0.2f * sunYellow;
       else
-        color += colorInfluence * 0.5f * skyBlue;
+        color += colorInfluence * 0.2f * skyBlue;
     }
   }
   return color * brightnessAdjust;

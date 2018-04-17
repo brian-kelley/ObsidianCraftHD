@@ -126,7 +126,7 @@ float kd[NUM_TILES] =
 float ks[NUM_TILES] =
 {
   0,        //AIR
-  0.2,      //STONE
+  0.1,      //STONE
   0.0,      //DIRT
   0.2,      //COAL
   0.2,      //IRON
@@ -136,9 +136,9 @@ float ks[NUM_TILES] =
   0.0,      //LEAF
   1.0,      //WATER
   0.1,      //SAND
-  1.0,      //GLASS
-  0.8,      //OBSIDIAN
-  0.8,      //QUARTZ
+  0.5,      //GLASS
+  0.2,      //OBSIDIAN
+  0.2,      //QUARTZ
   0.0,      //BEDROCK
   0.0       //unused
 };

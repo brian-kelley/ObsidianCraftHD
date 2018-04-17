@@ -17,8 +17,8 @@ SDL_GLContext glContext;
 GLuint textureID;
 bool running;
 
-const int viewportW = 640;
-const int viewportH = 480;
+const int viewportW = 1280;
+const int viewportH = 720;
 
 double currentTime;
 
@@ -61,8 +61,8 @@ void initTexture()
   glGenTextures(1, &textureID);
   glBindTexture(GL_TEXTURE_2D, textureID);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, RAY_W, RAY_H, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
 
 void renderFrame()
