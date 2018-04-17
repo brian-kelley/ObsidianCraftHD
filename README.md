@@ -9,7 +9,7 @@ Press F to produce a high-quality ray traced rendering of the current perspectiv
 offline in a separate process (the interactive application can still be used). Rendering will take a while!
 
 Thanks to the [Painterly Pack](http://painterlypack.net/) for textures (using a version from 2011).
-Thanks to the [STB libraries](https://github.com/nothings/stb) for PNG encoding and decoding.
+Thanks to the [STB libraries](https://github.com/nothings/stb) for PNG encoding and decoding and Perlin noise.
 
 ![A sample render](https://raw.githubusercontent.com/brian-kelley/ObsidianCraftHD/master/sample.png)
 
