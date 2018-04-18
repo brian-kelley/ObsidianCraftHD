@@ -17,8 +17,8 @@ SDL_GLContext glContext;
 GLuint textureID;
 bool running;
 
-const int viewportW = 1280;
-const int viewportH = 720;
+const int viewportW = 640;
+const int viewportH = 480;
 
 double currentTime;
 
@@ -41,7 +41,7 @@ void initWindow()
       SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_INPUT_GRABBED);
   SDL_ShowCursor(SDL_DISABLE);
   SDL_WarpMouseInWindow(window, viewportW / 2, viewportH / 2);
-  //SDL_SetRelativeMouseMode(SDL_TRUE);
+  SDL_SetRelativeMouseMode(SDL_TRUE);
   SDL_SetWindowGrab(window, SDL_TRUE);
   glContext = SDL_GL_CreateContext(window);
   SDL_GL_SetSwapInterval(1);
@@ -141,13 +141,22 @@ void processInput()
         }
         break;
       case SDL_MOUSEBUTTONDOWN:
-        break;
+        {
+          if(event.button.button == SDL_BUTTON_LEFT)
+          {
+            breakBlock();
+          }
+          else if(event.button.button == SDL_BUTTON_RIGHT)
+          {
+            placeBlock();
+          }
+          break;
+        }
       case SDL_MOUSEBUTTONUP:
         break;
       case SDL_MOUSEMOTION:
         dyaw += event.motion.xrel;
         dpitch += event.motion.yrel;
-        cout << "Mouse moved " << dyaw << ", " << dpitch << '\n';
         break;
       case SDL_MOUSEWHEEL:
         break;

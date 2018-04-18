@@ -4,7 +4,7 @@
 #include <cassert>
 #include <iostream>
 
-static Block* linearWorld;
+static Block* linearWorld = nullptr;
 
 using std::cout;
 
@@ -18,7 +18,22 @@ void setBlock(Block b, int x, int y, int z)
   {
     return;
   }
-  chunks[x / 16][y / 16][z / 16].blocks[x % 16][y % 16][z % 16] = b;
+  Chunk* chunk = &chunks[x / 16][y / 16][z / 16];
+  chunk->blocks[x % 16][y % 16][z % 16] = b;
+  if(linearWorld)
+  {
+    //world was already generated, need to keep numFilled and linearWorld
+    //up to date
+    if(b == getBlockFast(x, y, z))
+      return;
+    const int wy = chunksY * 16;
+    const int wz = chunksZ * 16;
+    linearWorld[x * wy * wz + y * wz + z] = b;
+    if(b == AIR)
+      chunk->numFilled--;
+    else
+      chunk->numFilled++;
+  }
 }
 
 Block getBlockFast(int x, int y, int z)

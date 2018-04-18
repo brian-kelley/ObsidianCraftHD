@@ -274,3 +274,40 @@ void updatePlayer(float dt, int dx, int dz, float dyaw, float dpitch, bool jump,
   }
 }
 
+void breakBlock()
+{
+  //trace ray from eye in direction of look; if hits non-air block
+  //within PLAYER_REACH then break it
+  bool escape;
+  ivec3 target;
+  vec3 normal;
+  Block prevMat;
+  Block nextMat;
+  collideRay(player, look, target, normal, prevMat, nextMat, escape);
+  if(escape || nextMat == WATER || nextMat == AIR)
+    return;
+  if(glm::length(player - vec3(target.x + 0.5, target.y + 0.5, target.z + 0.5)) < PLAYER_REACH)
+  {
+    setBlock(AIR, target.x, target.y, target.z);
+  }
+}
+
+void placeBlock()
+{
+  //trace ray from eye in direction of look; if hits non-air block
+  //within PLAYER_REACH then place a block in front of it
+  bool escape;
+  ivec3 target;
+  vec3 normal;
+  Block prevMat;
+  Block nextMat;
+  collideRay(player, look, target, normal, prevMat, nextMat, escape);
+  if(nextMat == WATER || nextMat == AIR)
+    return;
+  if(glm::length(player - vec3(target.x + 0.5, target.y + 0.5, target.z + 0.5)) < PLAYER_REACH)
+  {
+    ivec3 place(target.x + normal.x, target.y + normal.y, target.z + normal.z);
+    setBlock(WATER, place.x, place.y, place.z);
+  }
+}
+
