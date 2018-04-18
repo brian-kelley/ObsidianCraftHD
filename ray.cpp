@@ -36,10 +36,10 @@ bool fancy = false;
 #endif
 
 //ambient factor should be small, as it is not realistic at
-//all but just makes shadows easier on the eyes
+//all (but just makes shadows easier on the eyes, less contrast)
 const float ambient = 0.08;
 //scale all specular light contributions by this
-const float specularScale = 1;
+const float specularScale = 0.6;
 const float specExpo = 80;
 //All materials use the same Blinn-Phong specular exponent,
 //but they have a range of specular intensities
@@ -53,7 +53,7 @@ const vec3 waterBlue(0.15, 0.3, 0.5);
 const vec3 waterHue = vec3(0.6, 0.8, 0.9);
 const float waterClarity = 0.96;
 //sunlight direction
-vec3 sunlight = normalize(vec3(6.0, -1, 0.5));
+vec3 sunlight = normalize(vec3(1.0, -1, 0.5));
 const float cosSunRadius = 0.998;
 //multiply all ray contributions by this to keep image
 //brightness in a reasonable range
@@ -289,10 +289,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     vec3 normal;
     Block prevMaterial, nextMaterial;
     vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
+    /*
     if(glm::length(colorInfluence) < 0.05f)
     {
       return color * brightnessAdjust;
     }
+    */
     if(escape)
     {
       return processEscapedRay(intersect, direction, color, colorInfluence, bounces, exact);
@@ -415,9 +417,11 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       vec3 bounceColor;
       if(nextMaterial != WATER && float(rand()) / RAND_MAX > (spec / (spec + diff)))
       {
-        direction = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
-        if(glm::dot(direction, normal) < 0)
-          direction = -direction;
+        //diection is weighted average of specular reflection and a random direction
+        vec3 r = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
+        if(glm::dot(r, normal) < 0)
+          r = -r;
+        direction = normalize(0.6f * r + 0.4f * glm::reflect(direction, normal));
         //update color influence: very little light from subsequent bounces
         //will reflect off diffuse material and have significant color bleed
         bounceColor = reflectivity * desaturate(vec3(texel), 1 - fresnel);
@@ -574,7 +578,7 @@ vec3 traceFast(vec3 origin, vec3 direction)
 
 vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& prevMat, Block& nextMat, bool& escape)
 {
-  const float eps = 1e-8;
+  const float eps = 1e-16;
   ivec3 blockIter(ipart(origin.x + eps), ipart(origin.y + eps), ipart(origin.z + eps));
   if(fpart(origin.x) < eps && direction.x < 0)
     blockIter.x -= 1;
@@ -631,8 +635,8 @@ vec3 waterNormal(vec3 position)
 {
   //use Perlin noise to generate the normal
   float t = currentTime;
-  float p1 = 0.04 * stb_perlin_fbm_noise3(position.x + t / 3, 0, position.z + t / 3, 2.5, 0.6, 4, 0, 0, 0);
-  float p2 = 0.04 * stb_perlin_fbm_noise3(1000 - position.x - t / 3, 0, 1000 - position.z - t / 3, 2.5, 0.6, 4, 0, 0, 0);
+  float p1 = 0.06 * stb_perlin_fbm_noise3(position.x + t / 3, 0, position.z + t / 3, 2.5, 0.6, 4, 0, 0, 0);
+  float p2 = 0.06 * stb_perlin_fbm_noise3(1000 - position.x - t / 3, 0, 1000 - position.z - t / 3, 2.5, 0.6, 4, 0, 0, 0);
   return normalize(vec3(p1, 1, p2));
 }
 
@@ -673,6 +677,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
     {
       //refract to below water
       direction = normalize(glm::refract(direction, normal, 1 / nwater));
+      return vec3(0, 0, 0);
     }
   }
   if(direction.y > 0)
@@ -692,6 +697,7 @@ vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence
       {
         //internal reflection: turn back underwater
         direction = normalize(glm::reflect(direction, normal));
+        return vec3(0, 0, 0);
       }
     }
     //if direction is still upwards, add sky/sun contribution
@@ -740,7 +746,7 @@ bool visibleFromSun(vec3 pos, vec3 norm, bool air)
 {
   if(glm::dot(norm, sunlight) > 0)
     return false;
-  const float eps = 1e-8;
+  const float eps = 1e-16;
   //if ray is not in air,
   //  use monte carlo (if any one of several rays escapes
   //  near the sun, return true
@@ -880,7 +886,7 @@ void toggleFancy()
     RAY_W = 640;
     RAY_H = 480;
     MAX_BOUNCES = 6;
-    RAYS_PER_PIXEL = 40;
+    RAYS_PER_PIXEL = 100;
     RAY_THREADS = 4;
   }
   else

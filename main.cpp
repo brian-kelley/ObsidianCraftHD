@@ -191,21 +191,28 @@ void processInput()
 int main(int argc, const char** argv)
 {
   frameBuf = new byte[4 * RAY_W * RAY_H];
-  cout << "Generating terrain...\n";
-  terrainGen();
-  cout << "Done with terrain\n";
-  bool doAnimate = argc == 2 && strcmp(argv[1], "--animate") == 0;
+  bool doAnimate = argc > 1;
   if(!doAnimate)
   {
     initWindow();
   }
+  else if(argc != 5)
+  {
+    cout << "Usage: ./OCHD --animate <keyframe file> <output dir> <video time>\n";
+    exit(1);
+  }
   initAtlas();
   initTexture();
   initPlayer();
+  cout << "Generating terrain...\n";
+  terrainGen();
+  cout << "Done with terrain\n";
   if(doAnimate)
   {
-    loadKeyframes("keyframes.txt");
-    animate(30, "frames");
+    string keyframeFile = argv[2];
+    string outputDir = argv[3];
+    loadKeyframes(keyframeFile);
+    animate(atoi(argv[4]), outputDir);
     exit(0);
   }
   if(!doAnimate)
