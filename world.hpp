@@ -30,6 +30,10 @@ void printWorldComposition();
 extern Chunk chunks[chunksX][chunksY][chunksZ];
 
 void setBlock(Block b, int x, int y, int z);
+//getBlockFast does no bounds checking
+//the ray tracer can safely use this since it already checks
+//for when rays escape the world
+Block getBlockFast(int x, int y, int z);
 Block getBlock(int x, int y, int z);
 bool blockInBounds(int x, int y, int z);
 

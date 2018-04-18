@@ -4,6 +4,8 @@
 #include <cassert>
 #include <iostream>
 
+static Block* linearWorld;
+
 using std::cout;
 
 //Have INV_W x INV_H inventory grid
@@ -19,11 +21,18 @@ void setBlock(Block b, int x, int y, int z)
   chunks[x / 16][y / 16][z / 16].blocks[x % 16][y % 16][z % 16] = b;
 }
 
+Block getBlockFast(int x, int y, int z)
+{
+  const int wy = chunksY * 16;
+  const int wz = chunksZ * 16;
+  return linearWorld[x * wy * wz + y * wz + z];
+}
+
 Block getBlock(int x, int y, int z)
 {
   if(!blockInBounds(x, y, z))
   {
-    if(y < chunksY * 16 / 2)
+    if(y < seaLevel)
       return WATER;
     else
       return AIR;
@@ -107,6 +116,20 @@ void flatGen()
     }
   }
   setNumFilled();
+}
+
+void initLinearWorld()
+{
+  int wx = chunksX * 16;
+  int wy = chunksY * 16;
+  int wz = chunksZ * 16;
+  linearWorld = new Block[wx * wy * wz];
+  for(int i = 0; i < chunksX * 16; i++)
+    for(int j = 0; j < chunksY * 16; j++)
+      for(int k = 0; k < chunksZ * 16; k++)
+      {
+        linearWorld[i * wy * wz + j * wz + k] = getBlock(i, j, k);
+      }
 }
 
 void terrainGen()
@@ -451,6 +474,7 @@ void terrainGen()
   createTower(0.25 * (chunksX * 16), 0.25 * (chunksZ * 16));
   createCastle(0.75 * (chunksX * 16), 0.25 * (chunksZ * 16));
   setNumFilled();
+  initLinearWorld();
 }
 
 void createTower(int x, int z)

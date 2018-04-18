@@ -152,10 +152,10 @@ float fpart(float in)
 
 void render(bool write, string fname)
 {
-  pthread_t threads[RAY_THREADS];
   //reset counter - as image is rendered,
   //this is atomically incremented up to RAY_W * RAY_H
   atomic_store(&workCounter, 0);
+  pthread_t threads[RAY_THREADS];
   //launch workers
   for(int i = 0; i < RAY_THREADS; i++)
   {
@@ -588,7 +588,7 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
     blockIter.z -= 1;
   while(true)
   {
-    prevMat = getBlock(blockIter.x, blockIter.y, blockIter.z);
+    prevMat = getBlockFast(blockIter.x, blockIter.y, blockIter.z);
     //trace ray through space until a different material is encountered
     int cx = ipart(blockIter.x / 16.0f);
     int cy = ipart(blockIter.y / 16.0f);
@@ -611,7 +611,6 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
       nextBlock.y -= 1;
     if(fpart(intersect.z) < eps && direction.z < 0)
       nextBlock.z -= 1;
-    nextMat = getBlock(nextBlock.x, nextBlock.y, nextBlock.z);
     if(nextBlock.x < 0 || nextBlock.y < 0 || nextBlock.z < 0 ||
         nextBlock.x >= chunksX * 16 || nextBlock.y >= chunksY * 16 || nextBlock.z >= chunksZ * 16)
     {
@@ -619,6 +618,7 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
       block = nextBlock;
       return intersect;
     }
+    nextMat = getBlockFast(nextBlock.x, nextBlock.y, nextBlock.z);
     if(prevMat != nextMat)
     {
       escape = false;
