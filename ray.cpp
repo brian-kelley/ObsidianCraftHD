@@ -39,7 +39,7 @@ bool fancy = false;
 //all (but just makes shadows easier on the eyes, less contrast)
 const float ambient = 0.08;
 //scale all specular light contributions by this
-const float specularScale = 0.6;
+const float specularScale = 1.2;
 const float specExpo = 80;
 //All materials use the same Blinn-Phong specular exponent,
 //but they have a range of specular intensities
@@ -48,9 +48,9 @@ const float specExpo = 80;
 const vec3 skyBlue(0.34, 0.78, 1.0);
 const vec3 sunYellow(1, 1, 0.8);
 //color of water in non-fancy mode
-const vec3 waterBlue(0.15, 0.3, 0.5);
+const vec3 waterBlue(0.25, 0.5, 0.7);
 //color applied to water when reflect/refract from air
-const vec3 waterHue = vec3(0.6, 0.8, 0.9);
+const vec3 waterHue = vec3(0.6, 0.85, 0.9);
 const float waterClarity = 0.96;
 //sunlight direction
 vec3 sunlight = normalize(vec3(1.0, -1, 0.5));
@@ -289,12 +289,6 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
     vec3 normal;
     Block prevMaterial, nextMaterial;
     vec3 intersect = collideRay(origin, direction, blockIter, normal, prevMaterial, nextMaterial, escape);
-    /*
-    if(glm::length(colorInfluence) < 0.05f)
-    {
-      return color * brightnessAdjust;
-    }
-    */
     if(escape)
     {
       return processEscapedRay(intersect, direction, color, colorInfluence, bounces, exact);
@@ -334,11 +328,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       else if(normal.y > 0)
         normal = waterNormal(intersect);
     }
-    if(nextMaterial == WATER)
-    {
-      texel = vec4(waterHue, 0);
-    }
-    else if(texel.w < 0.5)
+    if(texel.w < 0.5)
     {
       texel = vec4(1, 1, 1, 0);
     }
@@ -384,6 +374,10 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
         float waterDarken = powf(waterClarity, glm::length(origin - intersect));
         colorInfluence *= waterDarken;
       }
+      else if(nextMaterial == WATER)
+      {
+        colorInfluence *= waterHue;
+      }
     }
     else
     {
@@ -408,7 +402,7 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       {
         diffContrib = diff * fmax(0, glm::dot(normal, -sunlight));
         vec3 halfway = -normalize(direction + sunlight);
-        specContrib = specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+        specContrib = spec * specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
       }
       color += colorInfluence * ((ambient + diffContrib) * vec3(texel) + specContrib * vec3(1, 1, 1));
       //decide whether to add specular or diffuse lighting from sun,
@@ -417,11 +411,12 @@ vec3 trace(vec3 origin, vec3 direction, bool& exact)
       vec3 bounceColor;
       if(nextMaterial != WATER && float(rand()) / RAND_MAX > (spec / (spec + diff)))
       {
-        //diection is weighted average of specular reflection and a random direction
+        //direction is a weighted average of specular reflection and a random direction
+        //this approximates the BRDF of a fairly rough Lambertian surface
         vec3 r = normalize(vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX));
         if(glm::dot(r, normal) < 0)
           r = -r;
-        direction = normalize(0.6f * r + 0.4f * glm::reflect(direction, normal));
+        direction = normalize(0.7f * r + 0.3f * glm::reflect(direction, normal));
         //update color influence: very little light from subsequent bounces
         //will reflect off diffuse material and have significant color bleed
         bounceColor = reflectivity * desaturate(vec3(texel), 1 - fresnel);
@@ -510,11 +505,11 @@ vec3 traceFast(vec3 origin, vec3 direction)
       vec3 reflectRay = normalize(glm::reflect(direction, normal));
       vec3 refractRay = normalize(glm::refract(direction, normal, 1 / refractIndex[WATER]));
       vec3 base = (1-fresnel) * waterHue * traceFast(intersect, refractRay) + fresnel * traceFast(intersect, reflectRay);
-      if(visibleFromSun(intersect, normal, true))
+      if(visibleFromSun(intersect, normal, false))
       {
         //compute additional specular component
         vec3 halfway = -normalize(direction + sunlight);
-        float specContrib = specularScale * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
+        float specContrib = specularScale * ks[WATER] * powf(fmax(0, glm::dot(halfway, normal)), specExpo);
         return base + specContrib * vec3(1, 1, 1);
       }
     }
@@ -554,7 +549,7 @@ vec3 traceFast(vec3 origin, vec3 direction)
       float diff = kd[nextMaterial];
       //pretend point of interest is in air because it's a much faster test
       //this means shadows won't be refracted in fast mode
-      bool shadowed = !visibleFromSun(intersect, normal, true);
+      bool shadowed = !visibleFromSun(intersect, normal, prevMaterial != WATER);
       float diffContrib = 0;
       float specContrib = 0;
       if(!shadowed)
@@ -586,6 +581,13 @@ vec3 collideRay(vec3 origin, vec3 direction, ivec3& block, vec3& normal, Block& 
     blockIter.y -= 1;
   if(fpart(origin.z) < eps && direction.z < 0)
     blockIter.z -= 1;
+  if(blockIter.x < 0 || blockIter.y < 0 || blockIter.z < 0 ||
+      blockIter.x >= chunksX * 16 || blockIter.y >= chunksY * 16 || blockIter.z >= chunksZ * 16)
+  {
+    escape = true;
+    block = blockIter;
+    return origin;
+  }
   while(true)
   {
     prevMat = getBlockFast(blockIter.x, blockIter.y, blockIter.z);
@@ -635,9 +637,9 @@ vec3 waterNormal(vec3 position)
 {
   //use Perlin noise to generate the normal
   float t = currentTime;
-  float p1 = 0.06 * stb_perlin_fbm_noise3(position.x + t / 3, 0, position.z + t / 3, 2.5, 0.6, 4, 0, 0, 0);
-  float p2 = 0.06 * stb_perlin_fbm_noise3(1000 - position.x - t / 3, 0, 1000 - position.z - t / 3, 2.5, 0.6, 4, 0, 0, 0);
-  return normalize(vec3(p1, 1, p2));
+  float p1 = stb_perlin_fbm_noise3(position.x + t / 6, 0, position.z + t / 6, 2.5, 0.6, 4, 0, 0, 0);
+  float p2 = stb_perlin_fbm_noise3(1000 - position.x - t / 6, 0, 1000 - position.z - t / 6, 2.5, 0.6, 4, 0, 0, 0);
+  return normalize(vec3(0.03 * sin(p1), 1, 0.03 * sin(p2)));
 }
 
 vec3 processEscapedRay(vec3 pos, vec3 direction, vec3 color, vec3 colorInfluence, int bounces, bool& exact)
@@ -794,45 +796,31 @@ bool visibleFromSun(vec3 pos, vec3 norm, bool air)
   }
   else
   {
-    const int samples = 32;
-    const int maxBounces = 4;
-    float threshold = 0.99;
-    vec3 normal;
-    ivec3 block;  //don't care about this
-    Block prevMat, nextMat;
-    bool escape = false;
+    ivec3 blockIter(ipart(pos.x + eps), ipart(pos.y + eps), ipart(pos.z + eps));
+    float n = refractIndex[getBlock(blockIter.x, blockIter.y, blockIter.z)];
+    int samples = fancy ? 5 : 1;
     for(int i = 0; i < samples; i++)
     {
-      //Choose a random direction to try which is in hemisphere of sun
-      vec3 dir;
-      if(i == 0)
-      {
-        dir = -sunlight;
-      }
-      else
-      {
-        dir = vec3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX);
-        if(glm::dot(dir, -sunlight) < 0)
-        {
-          dir = -dir;
-        }
-      }
+      vec3 dir = -normalize(glm::refract(sunlight, vec3(0, 1, 0), 1 / n));
+      vec3 normal;
+      ivec3 block;  //don't care about this
+      Block prevMat, nextMat;
+      bool escape = false;
       int bounces = 0;
-      while(bounces < maxBounces)
+      while(bounces < 5)
       {
         vec3 intersect = collideRay(pos, dir, block, normal, prevMat, nextMat, escape);
-        if(escape && glm::dot(dir, -sunlight) >= threshold)
+        if(escape)
         {
           //Found a ray that escaped to sun
           return true;
         }
-        //update normal if it's water
-        if(prevMat == WATER || nextMat == WATER)
+        if(prevMat == WATER && nextMat == AIR)
         {
           if(normal.y < 0)
-            normal = -waterNormal(intersect);
-          else if(normal.y > 0)
-            normal = waterNormal(intersect);
+            normal = normalize(float(i) * normal - float(samples - i) * waterNormal(intersect));
+          else
+            normal = normalize(float(i) * normal + float(samples - i) * waterNormal(intersect));
         }
         //sample texel
         vec4 texel;
@@ -861,7 +849,9 @@ bool visibleFromSun(vec3 pos, vec3 norm, bool air)
           }
           else
           {
+            //internal reflection always traps sun rays (should be good approximation)
             dir = normalize(glm::reflect(dir, normal));
+            break;
           }
         }
         else if(nNext > nPrev)
@@ -886,7 +876,7 @@ void toggleFancy()
     RAY_W = 640;
     RAY_H = 480;
     MAX_BOUNCES = 6;
-    RAYS_PER_PIXEL = 100;
+    RAYS_PER_PIXEL = 150;
     RAY_THREADS = 4;
   }
   else
